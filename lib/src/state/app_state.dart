@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:firebase_core/firebase_core.dart' as firebase_core;
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/foundation.dart';
@@ -524,6 +525,8 @@ class AppState extends ChangeNotifier {
     }
     await _loadLocalAddresses();
     if (backendToken == null) {
+      await loadAddresses(notify: false);
+      await loadOrders(notify: false);
       if (notify) notifyListeners();
       return;
     }
@@ -575,6 +578,7 @@ class AppState extends ChangeNotifier {
       await _syncBackendFirebaseSession();
     }
     if (backendToken == null) {
+      await _loadFirestoreAddresses();
       if (notify) notifyListeners();
       return;
     }
@@ -595,9 +599,11 @@ class AppState extends ChangeNotifier {
       await _syncBackendFirebaseSession();
     }
     if (backendToken == null) {
-      catalogError = 'Please sign in again after starting the backend. Address was not saved.';
+      final addressToStore = await _saveFirestoreAddress(address);
+      _upsertLocalAddress(addressToStore);
+      await _saveLocalAddresses();
       notifyListeners();
-      throw StateError(catalogError!);
+      return;
     }
     late final ShippingAddress addressToStore;
     try {
@@ -616,7 +622,10 @@ class AppState extends ChangeNotifier {
     addresses.removeWhere((item) => item.id == addressId);
     await _saveLocalAddresses();
     notifyListeners();
-    if (backendToken == null) return;
+    if (backendToken == null) {
+      await _deleteFirestoreAddress(addressId);
+      return;
+    }
     try {
       final saved = await _apiClient.deleteAddress(addressId, backendToken!);
       addresses
@@ -649,8 +658,99 @@ class AppState extends ChangeNotifier {
     addresses.add(address);
   }
 
+  Future<void> _loadFirestoreAddresses() async {
+    final uid = _firebaseUid;
+    if (uid == null) return;
+    try {
+      final snapshot = await firestore.FirebaseFirestore.instance
+          .collection('addresses')
+          .where('userId', isEqualTo: uid)
+          .get();
+      final saved = snapshot.docs
+          .map((doc) => ShippingAddress.fromMap({...doc.data(), 'id': doc.id, 'addressId': doc.id}))
+          .toList()
+        ..sort((a, b) => (b.isDefault ? 1 : 0).compareTo(a.isDefault ? 1 : 0));
+      addresses
+        ..clear()
+        ..addAll(saved);
+      await _saveLocalAddresses();
+      catalogError = null;
+    } catch (error) {
+      catalogError = 'Address sync failed. Check Firestore rules for addresses. $error';
+    }
+  }
+
+  Future<ShippingAddress> _saveFirestoreAddress(ShippingAddress address) async {
+    final uid = _firebaseUid;
+    if (uid == null) {
+      throw StateError('Please sign in again. Address was not saved.');
+    }
+    try {
+      if (address.isDefault) await _clearFirestoreDefaultAddresses(uid);
+      final docId = address.id.isEmpty ? _uuid.v4() : address.id;
+      final now = DateTime.now().toIso8601String();
+      final addressToStore = ShippingAddress(
+        id: docId,
+        name: address.name,
+        phone: address.phone,
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+        isDefault: address.isDefault,
+      );
+      await firestore.FirebaseFirestore.instance.collection('addresses').doc(docId).set({
+        ...addressToStore.toMap(),
+        'id': docId,
+        'addressId': docId,
+        'userId': uid,
+        'userEmail': currentUser?.email ?? firebase_auth.FirebaseAuth.instance.currentUser?.email,
+        'createdAt': now,
+        'updatedAt': now,
+      }, firestore.SetOptions(merge: true));
+      catalogError = null;
+      return addressToStore;
+    } catch (error) {
+      catalogError = 'Address was not saved to Firestore. Check Firebase rules. $error';
+      throw StateError(catalogError!);
+    }
+  }
+
+  Future<void> _deleteFirestoreAddress(String addressId) async {
+    final uid = _firebaseUid;
+    if (uid == null) return;
+    try {
+      final ref = firestore.FirebaseFirestore.instance.collection('addresses').doc(addressId);
+      final doc = await ref.get();
+      if (doc.exists && doc.data()?['userId'] == uid) await ref.delete();
+      catalogError = null;
+    } catch (error) {
+      catalogError = 'Address delete failed. Check Firestore rules. $error';
+    }
+  }
+
+  Future<void> _clearFirestoreDefaultAddresses(String uid) async {
+    final snapshot = await firestore.FirebaseFirestore.instance
+        .collection('addresses')
+        .where('userId', isEqualTo: uid)
+        .get();
+    final batch = firestore.FirebaseFirestore.instance.batch();
+    for (final doc in snapshot.docs) {
+      batch.set(doc.reference, {
+        'isDefault': false,
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, firestore.SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
   Future<void> loadOrders({bool notify = true}) async {
-    if (backendToken == null) return;
+    if (backendToken == null) {
+      await _loadFirestoreOrders();
+      if (notify) notifyListeners();
+      return;
+    }
     try {
       final saved = await _apiClient.fetchOrders(backendToken!);
       orders
@@ -805,17 +905,16 @@ class AppState extends ChangeNotifier {
       razorpayOrderId: paymentMethod == 'Razorpay' ? 'order_test_${_uuid.v4().substring(0, 8)}' : null,
     );
     if (backendToken == null) {
-      catalogError = 'Please sign in again after starting the backend. Order was not saved.';
-      notifyListeners();
-      throw StateError(catalogError!);
-    }
-    try {
-      final saved = await _apiClient.createOrder(_orderPayload(order), backendToken!);
-      order = _orderFromBackend(saved, fallback: order);
-    } catch (error) {
-      catalogError = error.toString();
-      notifyListeners();
-      throw StateError('Order was not saved to Firebase. $catalogError');
+      order = await _saveFirestoreOrder(order);
+    } else {
+      try {
+        final saved = await _apiClient.createOrder(_orderPayload(order), backendToken!);
+        order = _orderFromBackend(saved, fallback: order);
+      } catch (error) {
+        catalogError = error.toString();
+        notifyListeners();
+        throw StateError('Order was not saved to Firebase. $catalogError');
+      }
     }
     orders.removeWhere((item) => item.orderId == order.orderId);
     orders.insert(0, order);
@@ -996,6 +1095,73 @@ class AppState extends ChangeNotifier {
   void _replaceOrder(String orderId, AppOrder Function(AppOrder order) updater) {
     final index = orders.indexWhere((order) => order.orderId == orderId);
     if (index >= 0) orders[index] = updater(orders[index]);
+  }
+
+  Future<void> _loadFirestoreOrders() async {
+    final uid = _firebaseUid;
+    if (uid == null) return;
+    try {
+      final snapshot = await firestore.FirebaseFirestore.instance
+          .collection('orders')
+          .where('userId', isEqualTo: uid)
+          .get();
+      final saved = snapshot.docs
+          .map((doc) => _orderFromBackend({...doc.data(), 'orderId': doc.id}))
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      orders
+        ..clear()
+        ..addAll(saved);
+      catalogError = null;
+    } catch (error) {
+      catalogError = 'Order sync failed. Check Firestore rules for orders. $error';
+    }
+  }
+
+  Future<AppOrder> _saveFirestoreOrder(AppOrder order) async {
+    final uid = _firebaseUid;
+    if (uid == null) {
+      throw StateError('Please sign in again. Order was not saved.');
+    }
+    try {
+      final payload = {
+        ..._orderPayload(order),
+        'userId': uid,
+        'customerEmail': currentUser?.email ?? firebase_auth.FirebaseAuth.instance.currentUser?.email,
+        'addressId': order.address.id,
+        'createdAt': order.createdAt.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+      final db = firestore.FirebaseFirestore.instance;
+      final batch = db.batch();
+      batch.set(db.collection('orders').doc(order.orderId), payload, firestore.SetOptions(merge: true));
+      for (var index = 0; index < order.items.length; index += 1) {
+        final line = order.items[index];
+        final product = line.product;
+        final orderItemId = '${order.orderId}-${index + 1}';
+        batch.set(db.collection('order_items').doc(orderItemId), {
+          'orderItemId': orderItemId,
+          'orderId': order.orderId,
+          'userId': uid,
+          'productId': product.productId,
+          'name': product.name,
+          'sku': product.sku,
+          'thumbnail': product.thumbnail,
+          'color': product.color,
+          'size': product.size,
+          'quantity': line.quantity,
+          'price': product.price,
+          'subtotal': line.subtotal,
+          'createdAt': order.createdAt.toIso8601String(),
+        }, firestore.SetOptions(merge: true));
+      }
+      await batch.commit();
+      catalogError = null;
+      return order;
+    } catch (error) {
+      catalogError = 'Order was not saved to Firestore. Check Firebase rules. $error';
+      throw StateError(catalogError!);
+    }
   }
 
   Map<String, dynamic> _orderPayload(AppOrder order) {
@@ -1303,6 +1469,11 @@ class AppState extends ChangeNotifier {
   }
 
   bool get _firebaseReady => firebase_core.Firebase.apps.isNotEmpty;
+
+  String? get _firebaseUid {
+    if (!_firebaseReady) return null;
+    return firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+  }
 
   String _authFailureMessage(Object error) {
     if (error is firebase_auth.FirebaseAuthException) {

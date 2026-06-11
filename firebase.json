@@ -1,1 +1,26 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"mospl-final","appId":"1:682156124567:android:cf34738c1d7b334a77fcd2","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"mospl-final","configurations":{"android":"1:682156124567:android:cf34738c1d7b334a77fcd2","web":"1:682156124567:web:d10254289a7ae82177fcd2"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "mospl-final",
+          "appId": "1:682156124567:android:cf34738c1d7b334a77fcd2",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "mospl-final",
+          "configurations": {
+            "android": "1:682156124567:android:cf34738c1d7b334a77fcd2",
+            "web": "1:682156124567:web:d10254289a7ae82177fcd2"
+          }
+        }
+      }
+    }
+  }
+}
