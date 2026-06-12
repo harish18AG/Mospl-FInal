@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models.dart';
@@ -20,9 +19,7 @@ class ApiClient {
 
   static String get _defaultBaseUrl {
     if (_configuredBaseUrl.isNotEmpty) return _configuredBaseUrl;
-    if (kIsWeb) return 'http://127.0.0.1:8090';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8090';
-    return 'http://127.0.0.1:8090';
+    return 'https://mospl-final-1.onrender.com';
   }
 
   static String _normalizeBaseUrl(String value) {
