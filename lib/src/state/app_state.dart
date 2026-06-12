@@ -991,6 +991,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void markPaymentFailed(String orderId) {
+    _replaceOrder(
+      orderId,
+      (order) => order.copyWith(paymentStatus: 'Failed'),
+    );
+    notifyListeners();
+  }
+
   Future<Map<String, dynamic>> retryRazorpayPayment(String orderId) async {
     if (backendToken == null) await _syncBackendFirebaseSession();
     if (backendToken == null) return {'razorpayOrder': {'id': 'order_test_local'}};

@@ -450,10 +450,12 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen> {
           razorpayPaymentId: response.paymentId ?? 'pay_local_${DateTime.now().millisecondsSinceEpoch}',
           razorpaySignature: response.signature ?? 'local-signature',
         );
-        if (mounted) context.go('/order-success/${widget.orderId}');
+        if (mounted) context.go('/track-order/${widget.orderId}');
       },
       onError: (PaymentFailureResponse response) {
-        if (mounted) context.go('/order-failed/${widget.orderId}');
+        if (!mounted) return;
+        context.read<AppState>().markPaymentFailed(widget.orderId);
+        context.go('/track-order/${widget.orderId}');
       },
       onExternalWallet: (ExternalWalletResponse response) {},
     );
@@ -515,12 +517,15 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen> {
                     razorpayPaymentId: 'pay_sim_${DateTime.now().millisecondsSinceEpoch}',
                     razorpaySignature: 'local-signature',
                   );
-              if (context.mounted) context.go('/order-success/${order.orderId}');
+              if (context.mounted) context.go('/track-order/${order.orderId}');
             },
             child: const Text('Simulate Success'),
           ),
           TextButton(
-            onPressed: () => context.go('/order-failed/${order.orderId}'),
+            onPressed: () {
+              context.read<AppState>().markPaymentFailed(order.orderId);
+              context.go('/track-order/${order.orderId}');
+            },
             child: const Text('Simulate Failed Payment'),
           ),
         ],
@@ -541,8 +546,8 @@ class OrderSuccessScreen extends StatelessWidget {
         icon: Icons.check_circle_outline,
         title: 'Order placed successfully',
         subtitle: '$orderId is confirmed. You can track it from My Orders.',
-        actionLabel: 'View Order',
-        onAction: () => context.go('/order-details/$orderId'),
+        actionLabel: 'Track Order',
+        onAction: () => context.go('/track-order/$orderId'),
       ),
     );
   }
@@ -560,8 +565,8 @@ class OrderFailedScreen extends StatelessWidget {
         icon: Icons.error_outline,
         title: 'Payment failed',
         subtitle: 'Your Razorpay test payment did not complete for $orderId.',
-        actionLabel: 'Retry Payment',
-        onAction: () => context.go('/razorpay-payment/$orderId'),
+        actionLabel: 'Track Order',
+        onAction: () => context.go('/track-order/$orderId'),
       ),
     );
   }
@@ -699,50 +704,84 @@ class TrackOrderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final order = state.orders.firstWhere((item) => item.orderId == orderId, orElse: () => _paymentFallbackOrder(state, orderId));
     final steps = const [
       ('Confirmed', 'Order received'),
       ('Packed', 'Leather product quality checked'),
       ('Shipped', 'Picked up by delivery partner'),
       ('Delivered', 'Arriving in 5 days'),
     ];
-    return Scaffold(
-      appBar: AppBar(title: const Text('Track Order')),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(18),
-        itemCount: steps.length,
-        itemBuilder: (context, index) {
-          final done = index < 2;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: done ? const Color(0xff12833b) : Colors.grey.shade300,
-                    child: Icon(done ? Icons.check : Icons.circle, size: 14, color: done ? Colors.white : Colors.grey),
-                  ),
-                  if (index != steps.length - 1)
-                    Container(width: 2, height: 58, color: done ? const Color(0xff12833b) : Colors.grey.shade300),
-                ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) context.go('/home');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            onPressed: () => context.go('/home'),
+            icon: const Icon(Icons.arrow_back),
+          ),
+          title: const Text('Track Order'),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: ElevatedButton.icon(
+              onPressed: () => context.go('/home'),
+              icon: const Icon(Icons.home_outlined),
+              label: const Text('Go to Home'),
+            ),
+          ),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: Text(order.orderId),
+                subtitle: Text('${order.status} - ${order.paymentMethod} - ${order.paymentStatus}'),
+                trailing: Text(order.totalLabel, style: const TextStyle(fontWeight: FontWeight.w900)),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            const SizedBox(height: 18),
+            ...List.generate(steps.length, (index) {
+              final done = index < 2;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
                     children: [
-                      Text(steps[index].$1, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 4),
-                      Text('${steps[index].$2} • $orderId'),
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundColor: done ? const Color(0xff12833b) : Colors.grey.shade300,
+                        child: Icon(done ? Icons.check : Icons.circle, size: 14, color: done ? Colors.white : Colors.grey),
+                      ),
+                      if (index != steps.length - 1)
+                        Container(width: 2, height: 58, color: done ? const Color(0xff12833b) : Colors.grey.shade300),
                     ],
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(steps[index].$1, style: const TextStyle(fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 4),
+                          Text('${steps[index].$2} - $orderId'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
