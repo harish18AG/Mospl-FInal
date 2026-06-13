@@ -7,8 +7,11 @@ import 'firebase_options.dart';
 import 'src/state/app_state.dart';
 import 'src/theme/app_theme.dart';
 
+import 'package:flutter/semantics.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SemanticsBinding.instance.ensureSemantics();
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
