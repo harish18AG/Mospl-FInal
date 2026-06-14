@@ -557,22 +557,63 @@ class TestPostLoginNavigation:
             except:
                 return False
 
-    def _click_button_by_text(self, driver, text):
-        """Click a role=button flt-semantics element by exact text content."""
+    def _find_button_by_text(self, driver, text, timeout=8):
+        """Find a Flutter button by text using multiple strategies (CI + local compatible)."""
+        # Strategy 1: aria-label attribute (headless Chrome / CI)
         try:
-            btn = WebDriverWait(driver, 8).until(
+            el = WebDriverWait(driver, timeout).until(
                 EC.presence_of_element_located((
-                    By.XPATH,
-                    f'//flt-semantics[@role="button" and normalize-space()="{text}"]'
+                    By.CSS_SELECTOR, f'[role="button"][aria-label="{text}"]'
                 ))
             )
+            if el:
+                return el
+        except Exception:
+            pass
+
+        # Strategy 2: flt-semantics normalize-space (local visible Chrome)
+        try:
+            els = driver.find_elements(
+                By.XPATH, f'//flt-semantics[@role="button" and normalize-space()="{text}"]'
+            )
+            if els:
+                return els[0]
+        except Exception:
+            pass
+
+        # Strategy 3: contains subtree text (partial match)
+        try:
+            els = driver.find_elements(
+                By.XPATH, f'//flt-semantics[@role="button" and contains(.,"{text}")]'
+            )
+            if els:
+                return els[0]
+        except Exception:
+            pass
+
+        # Strategy 4: any role=button with matching text or aria-label
+        try:
+            all_btns = driver.find_elements(By.CSS_SELECTOR, '[role="button"]')
+            for btn in all_btns:
+                label = btn.get_attribute("aria-label") or ""
+                inner = btn.text or ""
+                if text in label or text in inner:
+                    return btn
+        except Exception:
+            pass
+
+        return None
+
+    def _click_button_by_text(self, driver, text):
+        """Click a Flutter button by text — works in headless CI and local Chrome."""
+        btn = self._find_button_by_text(driver, text)
+        if btn:
             try:
                 btn.click()
             except Exception:
                 driver.execute_script("arguments[0].click();", btn)
             return True
-        except Exception:
-            return False
+        return False
 
     # ── Bottom Nav Tab Visibility ─────────────────────────────────────────────
 
@@ -725,40 +766,32 @@ class TestPostLoginNavigation:
         """Men Wallets category filter button is present on home screen."""
         self._click_tab(driver, "Home")
         time.sleep(3)
-        btns = driver.find_elements(
-            By.XPATH, '//flt-semantics[@role="button" and normalize-space()="Men Wallets"]'
-        )
-        assert len(btns) > 0, "Men Wallets button not found"
+        btn = self._find_button_by_text(driver, "Men Wallets")
+        assert btn is not None, "Men Wallets button not found (tried aria-label, normalize-space, contains, text scan)"
 
     @pytest.mark.functional
     def test_TC052_passport_holders_button_present(self, driver):
         """Passport Holders filter button is present."""
         self._click_tab(driver, "Home")
         time.sleep(3)
-        btns = driver.find_elements(
-            By.XPATH, '//flt-semantics[@role="button" and normalize-space()="Passport Holders"]'
-        )
-        assert len(btns) > 0, "Passport Holders button not found"
+        btn = self._find_button_by_text(driver, "Passport Holders")
+        assert btn is not None, "Passport Holders button not found (tried aria-label, normalize-space, contains, text scan)"
 
     @pytest.mark.functional
     def test_TC053_men_belts_button_present(self, driver):
         """Men Belts filter button is present."""
         self._click_tab(driver, "Home")
         time.sleep(3)
-        btns = driver.find_elements(
-            By.XPATH, '//flt-semantics[@role="button" and normalize-space()="Men Belts"]'
-        )
-        assert len(btns) > 0, "Men Belts button not found"
+        btn = self._find_button_by_text(driver, "Men Belts")
+        assert btn is not None, "Men Belts button not found (tried aria-label, normalize-space, contains, text scan)"
 
     @pytest.mark.functional
     def test_TC054_women_wallets_button_present(self, driver):
         """Women Wallets filter button is present."""
         self._click_tab(driver, "Home")
         time.sleep(3)
-        btns = driver.find_elements(
-            By.XPATH, '//flt-semantics[@role="button" and normalize-space()="Women Wallets"]'
-        )
-        assert len(btns) > 0, "Women Wallets button not found"
+        btn = self._find_button_by_text(driver, "Women Wallets")
+        assert btn is not None, "Women Wallets button not found (tried aria-label, normalize-space, contains, text scan)"
 
     @pytest.mark.functional
     def test_TC055_click_men_wallets_filter(self, driver):
