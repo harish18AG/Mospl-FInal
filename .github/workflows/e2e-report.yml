@@ -1,0 +1,123 @@
+name: E2E Test Report
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - "feature/**"
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+permissions:
+  contents: read
+  checks: write        # needed for test-reporter action
+
+jobs:
+  web-e2e-tests:
+    name: Web Selenium E2E Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python setup ────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: e2e_tests/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r e2e_tests/requirements.txt
+
+      # ── 3. Chrome / ChromeDriver ───────────────────────────────────────────
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Verify Chrome installation
+        run: |
+          google-chrome --version
+          chromedriver --version
+
+      # ── 4. Run tests (headless) ────────────────────────────────────────────
+      - name: Run Web Selenium E2E Tests
+        working-directory: e2e_tests
+        env:
+          # Force headless Chrome via environment variable read in conftest
+          CI: "true"
+        run: |
+          python -m pytest web_selenium/ \
+            -v \
+            --tb=short \
+            --html=reports/e2e_report_${{ github.run_number }}.html \
+            --self-contained-html \
+            --junit-xml=reports/junit_${{ github.run_number }}.xml \
+            -o "addopts=" \
+            --co -q || true   # collect first to validate; remove this line if you want strict failure
+
+          python -m pytest web_selenium/ \
+            -v \
+            --tb=short \
+            --html=reports/e2e_report_${{ github.run_number }}.html \
+            --self-contained-html \
+            --junit-xml=reports/junit_${{ github.run_number }}.xml \
+            -o "addopts="
+        continue-on-error: true   # upload reports even when tests fail
+
+      # ── 5. Upload Excel + HTML reports ────────────────────────────────────
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mospl-e2e-reports-run-${{ github.run_number }}
+          path: |
+            e2e_tests/reports/*.xlsx
+            e2e_tests/reports/*.html
+            e2e_tests/reports/*.xml
+          retention-days: 30
+          if-no-files-found: warn
+
+      # ── 6. Publish JUnit results as GitHub Check annotations ──────────────
+      - name: Publish Test Results
+        if: always()
+        uses: EnricoMi/publish-test-results-action@v2
+        with:
+          files: e2e_tests/reports/junit_${{ github.run_number }}.xml
+          check_name: "Mospl Web E2E Test Results"
+          comment_on_pr: true
+          fail_on: "test failures"
+
+      # ── 7. Summary printed to GitHub Actions job summary ──────────────────
+      - name: Write Job Summary
+        if: always()
+        run: |
+          echo "## 📊 Mospl E2E Test Report — Run #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run number | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> 📁 Download the full **Excel + HTML reports** from the _Artifacts_ section above." >> $GITHUB_STEP_SUMMARY
+
+          # Parse JUnit XML for a quick pass/fail count
+          if [ -f e2e_tests/reports/junit_${{ github.run_number }}.xml ]; then
+            TESTS=$(grep -o 'tests="[^"]*"' e2e_tests/reports/junit_${{ github.run_number }}.xml | head -1 | grep -o '[0-9]*')
+            FAILURES=$(grep -o 'failures="[^"]*"' e2e_tests/reports/junit_${{ github.run_number }}.xml | head -1 | grep -o '[0-9]*')
+            ERRORS=$(grep -o 'errors="[^"]*"' e2e_tests/reports/junit_${{ github.run_number }}.xml | head -1 | grep -o '[0-9]*')
+            SKIPPED=$(grep -o 'skipped="[^"]*"' e2e_tests/reports/junit_${{ github.run_number }}.xml | head -1 | grep -o '[0-9]*')
+            PASSED=$((${TESTS:-0} - ${FAILURES:-0} - ${ERRORS:-0} - ${SKIPPED:-0}))
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Results" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Passed | ❌ Failed | ⚠️ Skipped | 📋 Total |" >> $GITHUB_STEP_SUMMARY
+            echo "|-----------|----------|-----------|---------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ${PASSED} | ${FAILURES:-0} | ${SKIPPED:-0} | ${TESTS:-0} |" >> $GITHUB_STEP_SUMMARY
+          fi
