@@ -43,10 +43,18 @@ def generate_excel_report(test_results: list):
 
     category_summary = df.groupby("Category")["Status"].value_counts().unstack(fill_value=0)
 
+    # Add ticks and emojis for the Excel display
+    display_df = df.copy()
+    display_df["Status"] = display_df["Status"].replace({
+        "PASS": "PASS ✓",
+        "FAIL": "FAIL ❌",
+        "SKIP": "SKIP ⏭"
+    })
+
     # ── Write sheets via pandas ExcelWriter ───────────────────────────────────
     with pd.ExcelWriter(filename, engine="openpyxl") as writer:
         # Sheet 1: All test cases
-        df.to_excel(writer, sheet_name="All Test Cases", index=False, startrow=2)
+        display_df.to_excel(writer, sheet_name="All Test Cases", index=False, startrow=2)
 
         # Sheet 2: Summary
         summary_data = {
@@ -63,11 +71,11 @@ def generate_excel_report(test_results: list):
         category_summary.to_excel(writer, sheet_name="Category Analysis")
 
         # Sheet 4: Failed tests only
-        failed_df = df[df["Status"] == "FAIL"]
+        failed_df = display_df[display_df["Status"] == "FAIL ❌"]
         failed_df.to_excel(writer, sheet_name="Failed Tests", index=False, startrow=2)
 
         # Sheet 5: Passed tests only
-        passed_df = df[df["Status"] == "PASS"]
+        passed_df = display_df[display_df["Status"] == "PASS ✓"]
         passed_df.to_excel(writer, sheet_name="Passed Tests", index=False, startrow=2)
 
     # ── Apply rich formatting with openpyxl ────────────────────────────────────
@@ -143,9 +151,9 @@ def _format_header_row(ws, row: int, cols: int, header_color: str = "2C3E50"):
 
 def _format_data_rows(ws, start_row: int, status_col: int):
     status_colors = {
-        "PASS": ("E8F5E9", "27AE60"),
-        "FAIL": ("FDEDEC", "E74C3C"),
-        "SKIP": ("FFF9C4", "F39C12"),
+        "PASS ✓": ("E8F5E9", "27AE60"),
+        "FAIL ❌": ("FDEDEC", "E74C3C"),
+        "SKIP ⏭": ("FFF9C4", "F39C12"),
     }
     for row_idx, row in enumerate(ws.iter_rows(min_row=start_row)):
         status_cell = ws.cell(row=start_row + row_idx, column=status_col)
