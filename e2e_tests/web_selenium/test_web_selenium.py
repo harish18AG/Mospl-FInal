@@ -759,6 +759,10 @@ class TestPostLoginNavigation:
                 time.sleep(1)
         except Exception:
             pass
+        
+        # Hard reset: ensure the app is reloaded to clear any stuck overlays in CI
+        driver.refresh()
+        time.sleep(3)
     # ── Category Filter Buttons ───────────────────────────────────────────────
 
     @pytest.mark.functional
