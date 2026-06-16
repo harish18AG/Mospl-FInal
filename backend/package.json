@@ -16,7 +16,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "firebase": "^11.2.0",
-    "firebase-admin": "^13.10.0",
+    "firebase-admin": "^14.0.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "razorpay": "^2.9.5"

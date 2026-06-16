@@ -1805,13 +1805,19 @@ class TestProfileScreen:
 
     def _verify_subpage(self, driver, title_sub):
         """Helper to assert that the profile sub-page has loaded successfully."""
-        time.sleep(2.5)
-        # 1. Verify we navigated away from the Profile screen by checking Logout is gone
-        assert "Logout" not in driver.page_source, \
-            "Did not navigate away from the Profile screen (Logout button still visible)."
-        # 2. Verify the subpage content exists in the page source
-        assert title_sub in driver.page_source, \
-            f"Expected content '{title_sub}' not found in the page source."
+        try:
+            WebDriverWait(driver, 10).until(
+                lambda d: "Logout" not in d.page_source
+            )
+        except Exception:
+            raise AssertionError("Did not navigate away from the Profile screen (Logout button still visible).")
+            
+        try:
+            WebDriverWait(driver, 10).until(
+                lambda d: title_sub in d.page_source
+            )
+        except Exception:
+            raise AssertionError(f"Expected content '{title_sub}' not found in the page source.")
 
     # ── Profile Menu Item Tests ───────────────────────────────────────────────
 
