@@ -1706,50 +1706,25 @@ class TestProfileScreen:
 
     def _click_menu_item(self, driver, label):
         """Click a profile menu item by its aria-label or text content."""
-        # Strategy 1: aria-label exact match
+        # First, reset scroll to top to ensure we start from a clean state
         try:
-            el = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, f'[aria-label="{label}"]'))
-            )
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
+            driver.execute_script("""
+                var scrollables = document.querySelectorAll('flt-semantics[style*="overflow-y: scroll"], [style*="overflow: scroll"]');
+                scrollables.forEach(function(el) {
+                    el.scrollTop = 0;
+                });
+            """)
             time.sleep(0.5)
+        except Exception:
+            pass
+
+        # Try to scroll down incrementally up to 6 times to reveal lazy-loaded elements
+        for attempt in range(6):
+            # Strategy 1: aria-label exact match
             try:
-                el.click()
-            except Exception:
-                driver.execute_script("arguments[0].click();", el)
-            return True
-        except Exception:
-            pass
-        # Strategy 2: flt-semantics containing text
-        try:
-            els = driver.find_elements(
-                By.XPATH, f'//flt-semantics[normalize-space()="{label}"]'
-            )
-            if els:
-                # Prioritize elements with role="button" or similar tap/click properties
-                el = els[0]
-                for candidate in els:
-                    role_attr = candidate.get_attribute("role")
-                    if role_attr == "button" or candidate.get_attribute("flt-tappable") is not None:
-                        el = candidate
-                        break
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
-                time.sleep(0.5)
-                try:
-                    el.click()
-                except Exception:
-                    driver.execute_script("arguments[0].click();", el)
-                return True
-        except Exception:
-            pass
-        # Strategy 3: any element with matching text
-        try:
-            all_els = driver.find_elements(
-                By.CSS_SELECTOR, '[role="button"], [role="listitem"], flt-semantics'
-            )
-            for el in all_els:
-                text = el.get_attribute("aria-label") or el.text or ""
-                if label in text:
+                els = driver.find_elements(By.CSS_SELECTOR, f'[aria-label="{label}"]')
+                if els:
+                    el = els[0]
                     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
                     time.sleep(0.5)
                     try:
@@ -1757,8 +1732,64 @@ class TestProfileScreen:
                     except Exception:
                         driver.execute_script("arguments[0].click();", el)
                     return True
-        except Exception:
-            pass
+            except Exception:
+                pass
+
+            # Strategy 2: flt-semantics containing text
+            try:
+                els = driver.find_elements(
+                    By.XPATH, f'//flt-semantics[normalize-space()="{label}"]'
+                )
+                if els:
+                    el = els[0]
+                    for candidate in els:
+                        role_attr = candidate.get_attribute("role")
+                        if role_attr == "button" or candidate.get_attribute("flt-tappable") is not None:
+                            el = candidate
+                            break
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
+                    time.sleep(0.5)
+                    try:
+                        el.click()
+                    except Exception:
+                        driver.execute_script("arguments[0].click();", el)
+                    return True
+            except Exception:
+                pass
+
+            # Strategy 3: any element with matching text
+            try:
+                all_els = driver.find_elements(
+                    By.CSS_SELECTOR, '[role="button"], [role="listitem"], flt-semantics'
+                )
+                for el in all_els:
+                    text = el.get_attribute("aria-label") or el.text or ""
+                    if label in text:
+                        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
+                        time.sleep(0.5)
+                        try:
+                            el.click()
+                        except Exception:
+                            driver.execute_script("arguments[0].click();", el)
+                        return True
+            except Exception:
+                pass
+
+            # Scroll down by 250px to reveal off-screen lazy-loaded elements
+            try:
+                driver.execute_script("""
+                    var scrollables = document.querySelectorAll('flt-semantics[style*="overflow-y: scroll"], [style*="overflow: scroll"]');
+                    if (scrollables.length === 0) {
+                        scrollables = Array.from(document.querySelectorAll('flt-semantics')).filter(el => el.scrollHeight > el.clientHeight);
+                    }
+                    scrollables.forEach(function(el) {
+                        el.scrollTop += 250;
+                    });
+                """)
+                time.sleep(0.8)
+            except Exception:
+                pass
+
         return False
 
 
