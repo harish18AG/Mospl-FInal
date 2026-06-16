@@ -46,10 +46,29 @@ def driver():
 
     drv = webdriver.Chrome(options=options)
     drv.implicitly_wait(10)
-    drv.get(BASE_URL)
-    time.sleep(3)  # Let Flutter app fully load
+
+    # Set window to 1920x1080 before any page load so Flutter renders at the
+    # correct desktop width. Fixes TC014 (window.innerWidth >= 1024 assertion).
+    # Using set_window_size() instead of --window-size Chrome arg avoids
+    # Chrome stability issues on Windows.
+    drv.set_window_size(1920, 1080)
+
+    # Flutter Web cold-start fix: load the root URL first so the Flutter engine
+    # bootstraps and caches all JS assets. Then load the signin deep-link.
+    # Using driver.get() (not JS hash nav) ensures Flutter fully re-initialises
+    # its render tree (flt-glass-pane, canvas, semantics) on each navigation.
+    drv.get("https://harish18ag.github.io/Mospl-FInal/")
+    time.sleep(5)   # Allow Flutter JS bundle to download and bootstrap
+
+    drv.get("https://harish18ag.github.io/Mospl-FInal/#/signin")
+    time.sleep(3)   # Let Flutter router render the signin page
+
     yield drv
     drv.quit()
+
+
+
+
 
 
 @pytest.fixture(scope="function")
