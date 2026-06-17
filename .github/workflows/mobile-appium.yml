@@ -76,6 +76,8 @@ jobs:
           target: google_apis
           arch: arm64-v8a
           profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-audio -no-boot-anim -camera-back none
           script: |
             # Start Appium server in background
             appium --port 4723 --log-level error &
