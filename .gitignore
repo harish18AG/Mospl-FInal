@@ -49,3 +49,12 @@ app.*.map.json
 **/.env
 *firebase-adminsdk*.json
 serviceAccount*.json
+
+# Node modules
+**/node_modules/
+
+# Test reports
+e2e_tests/reports/*.xlsx
+e2e_tests/reports/*.html
+e2e_tests/reports/*.xml
+
