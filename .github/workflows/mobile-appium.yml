@@ -37,7 +37,7 @@ jobs:
       - name: Install Appium & UIAutomator2
         run: |
           mkdir -p ~/.npm-global
-          npm config set prefix '~/.npm-global'
+          npm config set prefix "$HOME/.npm-global"
           echo "$HOME/.npm-global/bin" >> $GITHUB_PATH
           export PATH="$HOME/.npm-global/bin:$PATH"
           npm install -g appium
