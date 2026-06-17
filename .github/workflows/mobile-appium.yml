@@ -40,7 +40,7 @@ jobs:
           sudo chown -R $USER /usr/local/lib/node_modules
           sudo chown -R $USER /usr/local/bin
           (npm install -g appium && appium driver install uiautomator2) > appium_install.log 2>&1 || {
-            ERR_MSG=$(cat appium_install.log | tr '\n' ' ' | cut -c1-1000)
+            ERR_MSG=$(tail -n 50 appium_install.log | tr '\n' ' ' | tr '"' "'")
             echo "::error::Appium installation failed: $ERR_MSG"
             exit 1
           }
