@@ -906,7 +906,7 @@ class TestNavigation:
                 break
             time.sleep(2)
         driver.implicitly_wait(15)
-        assert len(btns) > 0 or _is_logged_in(driver) or driver.query_app_state(APP_PACKAGE) >= 3
+        assert len(btns) > 0 or _is_logged_in(driver), "Bottom navigation bar (Tab 1 of 5) not found or not visible!"
 
     @pytest.mark.navigation
     def test_MA062_tap_home_tab(self, driver):
