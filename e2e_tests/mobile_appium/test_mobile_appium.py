@@ -156,16 +156,21 @@ def get_all_text(driver):
     try:
         driver.implicitly_wait(1)
         els = driver.find_elements(AppiumBy.XPATH, '//*[@text!="" or @content-desc!=""]')
-        driver.implicitly_wait(15)
-        parts = []
-        for e in els:
-            t = (e.text or "").strip() or (e.get_attribute("content-desc") or "").strip()
-            if t:
-                parts.append(t)
-        return " ".join(parts)
     except Exception:
         driver.implicitly_wait(15)
         return ""
+
+    driver.implicitly_wait(15)
+    parts = []
+    for e in els:
+        try:
+            t = (e.text or "").strip() or (e.get_attribute("content-desc") or "").strip()
+            if t:
+                parts.append(t)
+        except Exception:
+            continue
+    return " ".join(parts)
+
 
 
 def find_by_desc(driver, desc, timeout=6):
@@ -584,7 +589,10 @@ class TestFunctionalAuth:
     @pytest.mark.functional
     def test_MA038_post_login_content_loaded(self, driver):
         """Content loads after login."""
-        time.sleep(2)
+        for _ in range(5):
+            if len(get_all_text(driver)) > 0:
+                break
+            time.sleep(2)
         assert len(get_all_text(driver)) > 0
 
     @pytest.mark.functional
