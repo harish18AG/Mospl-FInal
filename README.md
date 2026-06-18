@@ -108,3 +108,7 @@ All backend routes are under `/api`.
 - `GET /api/admin/dashboard`
 - `GET /api/admin/users`
 - `GET /api/admin/analytics`
+
+## Collaborative GitHub Actions & Self-Hosted Runner
+The GitHub Actions workflow has been configured to use a self-hosted Windows runner. The E2E tests execute locally using the collaborator account (`1923247102.simats@saveetha.com`) configured for git pushes.
+
