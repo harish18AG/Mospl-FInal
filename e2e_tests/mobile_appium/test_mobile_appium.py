@@ -209,7 +209,9 @@ def _is_logged_in(driver):
         driver.implicitly_wait(1)
         els = driver.find_elements(
             AppiumBy.XPATH,
-            '//*[contains(@content-desc,"Tab 1 of 5") or contains(@content-desc,"Tab 2 of 5")]'
+            '//*[contains(@content-desc,"Tab 1 of 5") or contains(@content-desc,"Tab 2 of 5") or '
+            '@content-desc="Home" or @content-desc="Categories" or @content-desc="Profile" or '
+            '@content-desc="Wishlist" or @content-desc="Cart"]'
         )
         driver.implicitly_wait(15)
         return len(els) > 0
@@ -1061,7 +1063,11 @@ class TestShoppingFlow:
     def test_MA080_men_wallets_category_tap(self, driver):
         """Tapping Men Wallets category tile opens product list."""
         go_home(driver)
-        tap(driver, *CAT_MEN_WALLETS)  # Men Wallets at (171,972)
+        tapped = tap_desc(driver, "Men Wallets", timeout=3)
+        if not tapped:
+            tapped = tap_desc(driver, "Men's Wallets", timeout=2)
+        if not tapped:
+            tap(driver, *CAT_MEN_WALLETS)  # Men Wallets at (171,972)
         time.sleep(3)
         go_back(driver)
         assert driver.query_app_state(APP_PACKAGE) >= 3
@@ -1077,7 +1083,11 @@ class TestShoppingFlow:
     def test_MA082_passport_holders_category_tap(self, driver):
         """Tapping Passport Holders category opens product list."""
         go_home(driver)
-        tap(driver, *CAT_PASSPORT)  # Passport Holders at (475,972)
+        tapped = tap_desc(driver, "Passport Holders", timeout=3)
+        if not tapped:
+            tapped = tap_desc(driver, "Passport", timeout=2)
+        if not tapped:
+            tap(driver, *CAT_PASSPORT)  # Passport Holders at (475,972)
         time.sleep(3)
         go_back(driver)
         assert driver.query_app_state(APP_PACKAGE) >= 3
@@ -1106,7 +1116,11 @@ class TestShoppingFlow:
     def test_MA085_men_belts_category_tap(self, driver):
         """Tapping Men Belts category opens product list."""
         go_home(driver)
-        tap(driver, *CAT_MEN_BELTS)  # Men Belts at (780,972)
+        tapped = tap_desc(driver, "Men Belts", timeout=3)
+        if not tapped:
+            tapped = tap_desc(driver, "Men's Belts", timeout=2)
+        if not tapped:
+            tap(driver, *CAT_MEN_BELTS)  # Men Belts at (780,972)
         time.sleep(3)
         go_back(driver)
         assert driver.query_app_state(APP_PACKAGE) >= 3
@@ -1115,10 +1129,14 @@ class TestShoppingFlow:
     def test_MA086_women_wallets_category_tap(self, driver):
         """Tapping Women Wallets category opens product list."""
         go_home(driver)
-        # Women Wallets chip may be off-screen — swipe categories bar
-        driver.swipe(900, 972, 200, 972, 400)
-        time.sleep(0.5)
-        tap(driver, *CAT_WOMEN_WALLETS)
+        tapped = tap_desc(driver, "Women Wallets", timeout=3)
+        if not tapped:
+            tapped = tap_desc(driver, "Women's Wallets", timeout=2)
+        if not tapped:
+            # Women Wallets chip may be off-screen — swipe categories bar
+            driver.swipe(900, 972, 200, 972, 400)
+            time.sleep(0.5)
+            tap(driver, *CAT_WOMEN_WALLETS)
         time.sleep(3)
         go_back(driver)
         assert driver.query_app_state(APP_PACKAGE) >= 3
