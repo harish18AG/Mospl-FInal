@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   mobile-appium-tests:
-    runs-on: macos-14
+    runs-on: self-hosted
     timeout-minutes: 60
 
     steps:
@@ -20,77 +20,33 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Setup Java
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      # 3. Setup Node.js (for Appium)
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      # 4. Install Appium and UIAutomator2 Driver
-      - name: Install Appium & UIAutomator2
-        run: |
-          sudo mkdir -p /usr/local/lib/node_modules
-          sudo chown -R $USER /usr/local/lib/node_modules
-          sudo chown -R $USER /usr/local/bin
-          (npm install -g appium && appium driver install uiautomator2@2) > appium_install.log 2>&1 || {
-            ERR_MSG=$(tail -n 50 appium_install.log | tr '\n' ' ' | tr '"' "'")
-            echo "::error::Appium installation failed: $ERR_MSG"
-            exit 1
-          }
-
-      # 5. Set up Python (for pytest)
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: e2e_tests/requirements.txt
-
+      # 2. Install Python dependencies
       - name: Install Python dependencies
-        run: |
-          pip install -r e2e_tests/requirements.txt
+        run: pip install -r e2e_tests/requirements.txt
+        shell: powershell
 
-      # 6. Setup Flutter
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          flutter-version: '3.41.6'
-
-      # 7. Build Android APK
+      # 3. Build Android Debug APK
       - name: Build Android Debug APK
         run: flutter build apk --debug
+        shell: powershell
 
-      # 8. Start Android Emulator and Run E2E Tests
-      - name: Run Appium Tests in Emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 31
-          target: google_apis
-          arch: arm64-v8a
-          disable-animations: true
-          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none
-          script: |
-            # Start Appium server in background
-            appium --port 4723 --log-level error &
-            
-            # Wait for Emulator to be ready and Appium to start
-            sleep 15
-            
-            # Install the APK built in step 7
-            adb install build/app/outputs/flutter-apk/app-debug.apk
-            
-            # Run the mobile Appium E2E pytest suite
-            python e2e_tests/mobile_appium/run_appium_tests.py
+      # 4. Install APK to Connected Device
+      - name: Install APK to Connected Device
+        run: |
+          $adb = "adb"
+          if (Test-Path "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe") {
+            $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+          }
+          write-host "Using adb at: $adb"
+          & $adb install -r build/app/outputs/flutter-apk/app-debug.apk
+        shell: powershell
 
-      # 9. Upload Test Reports
+      # 5. Run Appium E2E Tests
+      - name: Run Appium E2E Tests
+        run: python e2e_tests/mobile_appium/run_appium_tests.py
+        shell: powershell
+
+      # 6. Upload Test Reports
       - name: Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v4
