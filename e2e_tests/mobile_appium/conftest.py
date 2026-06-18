@@ -158,7 +158,41 @@ def driver():
     options.full_reset = False
     options.new_command_timeout = 300
     options.auto_grant_permissions = True
-    options.udid = "emulator-5554"
+
+    # Auto-detect connected Android device UDID using adb
+    import subprocess
+    detected_udid = None
+    adb_cmds = ["adb"]
+    localappdata = os.environ.get("LOCALAPPDATA")
+    if localappdata:
+        adb_cmds.append(os.path.join(localappdata, "Android", "Sdk", "platform-tools", "adb.exe"))
+    android_home = os.environ.get("ANDROID_HOME")
+    if android_home:
+        adb_cmds.append(os.path.join(android_home, "platform-tools", "adb.exe"))
+
+    for adb_cmd in adb_cmds:
+        try:
+            res = subprocess.run([adb_cmd, "devices"], capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                lines = res.stdout.strip().split("\n")
+                devices = []
+                for line in lines[1:]:
+                    if line.strip():
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[1] == "device":
+                            devices.append(parts[0])
+                if devices:
+                    detected_udid = devices[0]
+                    print(f"[APPIUM] Successfully detected connected device: {detected_udid}")
+                    break
+        except Exception:
+            continue
+
+    if not detected_udid:
+        detected_udid = "R9ZXA0BDBTM"  # Fallback to the user's specific Samsung device
+        print(f"[APPIUM] No active adb device found via adb. Using fallback UDID: {detected_udid}")
+
+    options.udid = detected_udid
 
     # Use XPath1 to avoid the XPath2 compiler warning that slows down element lookups
     options.set_capability("appium:settings[enforceXPath1]", True)
