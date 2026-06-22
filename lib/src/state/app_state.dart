@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -39,6 +40,11 @@ class AppState extends ChangeNotifier {
   String catalogSource = 'frontend-fallback';
   String? catalogError;
   String? backendToken;
+
+  // ── Real-time Firestore stream subscriptions ────────────────────────────────
+  StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _cartStream;
+  StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _wishlistStream;
+  String? _realtimeSyncUid; // tracks which UID streams are active for
 
   String searchQuery = '';
   String sortOption = 'Recommended';
@@ -196,6 +202,8 @@ class AppState extends ChangeNotifier {
       );
       await _syncBackendFirebaseSession();
       await loadAuthenticatedData(notify: false);
+      // Start real-time Firestore streams so any mobile change is immediately reflected
+      _startRealtimeSync(firebaseUser?.uid);
     }
     notifyListeners();
   }
@@ -363,6 +371,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _stopRealtimeSync();
     try {
       await firebase_auth.FirebaseAuth.instance.signOut();
     } catch (_) {}
@@ -388,6 +397,64 @@ class AppState extends ChangeNotifier {
     await prefs.remove('userRole');
     await prefs.remove('backendToken');
     notifyListeners();
+  }
+
+  // ── Real-time Firestore streams ─────────────────────────────────────────────
+  // These listeners fire within ~100-500 ms whenever mobile (or any client)
+  // writes to carts/{uid} or wishlists/{uid} in Firestore.
+
+  void _startRealtimeSync(String? uid) {
+    if (uid == null || uid == _realtimeSyncUid) return; // already listening
+    if (!_firebaseReady) return;
+    _stopRealtimeSync(); // cancel any previous streams
+    _realtimeSyncUid = uid;
+
+    final db = firestore.FirebaseFirestore.instance;
+
+    // ── Cart stream ──────────────────────────────────────────────────────────
+    _cartStream = db
+        .collection('carts')
+        .doc(uid)
+        .snapshots()
+        .listen((snapshot) {
+      if (!snapshot.exists) return;
+      final data = snapshot.data();
+      if (data == null) return;
+      final rawItems = (data['items'] as List? ?? const []).whereType<Map>();
+      final newCart = rawItems
+          .map((item) => _cartLineFromBackend(item.cast<String, dynamic>()))
+          .toList();
+      cart
+        ..clear()
+        ..addAll(newCart);
+      notifyListeners();
+    }, onError: (_) {/* silently ignore stream errors */});
+
+    // ── Wishlist stream ──────────────────────────────────────────────────────
+    _wishlistStream = db
+        .collection('wishlists')
+        .doc(uid)
+        .snapshots()
+        .listen((snapshot) {
+      if (!snapshot.exists) return;
+      final data = snapshot.data();
+      if (data == null) return;
+      final ids = (data['productIds'] as List? ?? const [])
+          .map((id) => id.toString())
+          .toSet();
+      wishlist
+        ..clear()
+        ..addAll(ids);
+      notifyListeners();
+    }, onError: (_) {/* silently ignore stream errors */});
+  }
+
+  void _stopRealtimeSync() {
+    _cartStream?.cancel();
+    _wishlistStream?.cancel();
+    _cartStream = null;
+    _wishlistStream = null;
+    _realtimeSyncUid = null;
   }
 
   void updateSearch(String value) {
@@ -1442,9 +1509,13 @@ class AppState extends ChangeNotifier {
     final hadToken = backendToken != null;
     backendToken = session.token;
     if (session.user != null) currentUser = session.user;
-    // If we just obtained a token for the first time (e.g. after a cold-start
-    // retry), reload cart + wishlist in the background so the web cart updates
-    // without requiring the user to sign out and back in.
+    // Start real-time Firestore streams as soon as we have a Firebase UID.
+    // This covers the case where restoreSession() wasn't able to start them
+    // (e.g. Render cold-start forced a retry).
+    final uid = _firebaseUid;
+    if (uid != null) _startRealtimeSync(uid);
+    // Also do a one-shot reload if we just obtained a token for the first time
+    // to immediately populate cart/wishlist before the stream first fires.
     if (!hadToken && backendToken != null) {
       Future.wait([
         loadCart(notify: true),
