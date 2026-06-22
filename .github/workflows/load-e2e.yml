@@ -1,0 +1,58 @@
+name: Load E2E Test
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  load-e2e-tests:
+    runs-on: self-hosted
+    timeout-minutes: 60
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Install Python dependencies
+      - name: Install Python dependencies
+        run: pip install -r e2e_tests/requirements.txt
+        shell: powershell
+
+      # 3. Build Android Debug APK
+      - name: Build Android Debug APK
+        run: flutter build apk --debug
+        shell: powershell
+
+      # 4. Install APK to Connected Device
+      - name: Install APK to Connected Device
+        run: |
+          $adb = "adb"
+          if (Test-Path "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe") {
+            $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+          }
+          write-host "Using adb at: $adb"
+          & $adb install -r build/app/outputs/flutter-apk/app-debug.apk
+        shell: powershell
+
+      # 5. Run Load E2E Tests
+      - name: Run Load E2E Tests
+        run: python e2e_tests/Load_test/run_load_test.py
+        shell: powershell
+
+      # 6. Upload Test Reports
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mospl-load-test-reports-run-${{ github.run_number }}
+          path: |
+            e2e_tests/reports/*Load_Test_Report*.xlsx
+          retention-days: 30
+          if-no-files-found: warn
