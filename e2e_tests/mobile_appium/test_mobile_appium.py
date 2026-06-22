@@ -60,8 +60,17 @@ CART_TOP_BTN        = (1017, 206)
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def tap(driver, x, y, duration=150):
-    """Tap at absolute screen coordinates."""
+    """Tap at absolute screen coordinates, dynamically scaling to prevent out-of-bounds crashes."""
     try:
+        size = driver.get_window_size()
+        w, h = size["width"], size["height"]
+        if x >= w or y >= h:
+            # Scale coordinates down proportionally from baseline 1080x2337
+            x = int(x * (w / 1080))
+            y = int(y * (h / 2337))
+            # Double check bounds
+            if x >= w: x = w - 5
+            if y >= h: y = h - 5
         driver.tap([(x, y)], duration)
         time.sleep(0.8)
     except Exception as e:
@@ -106,31 +115,36 @@ def swipe_right(driver):
 
 def go_home(driver):
     """Tap the Home nav tab."""
-    tap(driver, *NAV_HOME)
+    if not tap_desc(driver, "Tab 1 of 5", timeout=2):
+        tap(driver, *NAV_HOME)
     time.sleep(1.5)
 
 
 def go_categories(driver):
     """Tap the Categories nav tab."""
-    tap(driver, *NAV_CATEGORIES)
+    if not tap_desc(driver, "Tab 2 of 5", timeout=2):
+        tap(driver, *NAV_CATEGORIES)
     time.sleep(1.5)
 
 
 def go_wishlist(driver):
     """Tap the Wishlist nav tab."""
-    tap(driver, *NAV_WISHLIST)
+    if not tap_desc(driver, "Tab 3 of 5", timeout=2):
+        tap(driver, *NAV_WISHLIST)
     time.sleep(1.5)
 
 
 def go_cart(driver):
     """Tap the Cart nav tab."""
-    tap(driver, *NAV_CART)
+    if not tap_desc(driver, "Tab 4 of 5", timeout=2):
+        tap(driver, *NAV_CART)
     time.sleep(1.5)
 
 
 def go_profile(driver):
     """Tap the Profile nav tab."""
-    tap(driver, *NAV_PROFILE)
+    if not tap_desc(driver, "Tab 5 of 5", timeout=2):
+        tap(driver, *NAV_PROFILE)
     time.sleep(1.5)
 
 
