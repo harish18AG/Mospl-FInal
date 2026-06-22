@@ -12,8 +12,8 @@ import os
 # Container to accumulate results
 load_results = []
 
-# ─── Web (Selenium/API) Load Parameters (150 tests) ───────────────────────────
-# We use 30 rounds of 5 web pages/elements to perform 150 distinct measurements
+# ─── Web (Selenium/API) Load Parameters (310 tests) ───────────────────────────
+# We use 62 rounds of 5 web pages/elements to perform 310 distinct measurements
 WEB_URLS = [
     ("https://harish18ag.github.io/Mospl-FInal/", "Web Home Rendering"),
     ("https://harish18ag.github.io/Mospl-FInal/#/signin", "Web Signin Load"),
@@ -23,13 +23,13 @@ WEB_URLS = [
 ]
 
 WEB_PARAMS = []
-for round_num in range(1, 31):
+for round_num in range(1, 63):
     for url, desc in WEB_URLS:
         WEB_PARAMS.append((f"LT-WEB-{round_num:02d}-{desc.replace(' ', '-')}", url, desc))
 
 
-# ─── Mobile (Appium/ADB) Load Parameters (150 tests) ──────────────────────────
-# We run 30 rounds of 5 ADB/Appium device interaction trials to perform 150 measurements.
+# ─── Mobile (Appium/ADB) Load Parameters (310 tests) ──────────────────────────
+# We run 62 rounds of 5 ADB/Appium device interaction trials to perform 310 measurements.
 # This communicates directly with the physical phone, measuring real response times.
 MOBILE_COMMANDS = [
     ("adb shell pm list packages com.mospl.mospl", "App Package Check"),
@@ -40,7 +40,7 @@ MOBILE_COMMANDS = [
 ]
 
 MOBILE_PARAMS = []
-for round_num in range(1, 31):
+for round_num in range(1, 63):
     for cmd, desc in MOBILE_COMMANDS:
         MOBILE_PARAMS.append((f"LT-MOB-{round_num:02d}-{desc.replace(' ', '-')}", cmd, desc))
 

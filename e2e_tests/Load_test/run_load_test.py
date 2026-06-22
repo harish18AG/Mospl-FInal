@@ -13,7 +13,7 @@ if __name__ == "__main__":
     os.chdir(current_dir)
     print("=" * 65)
     print("  [START] Starting MOSPL Selenium & Appium E2E Load Test Suite")
-    print("  [COUNT] Target: 300 Performance Test Cases")
+    print("  [COUNT] Target: 600+ Performance Test Cases")
     print("  [URL]   Web Endpoint: https://harish18ag.github.io/Mospl-FInal/")
     print("=" * 65)
     print()
