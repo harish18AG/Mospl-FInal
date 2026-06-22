@@ -428,7 +428,7 @@ class ApiClient {
   Future<Map<String, dynamic>> _getJson(String path, {String? token}) async {
     final response = await _client
         .get(Uri.parse('$baseUrl$path'), headers: _headers(token: token))
-        .timeout(const Duration(seconds: 4));
+        .timeout(const Duration(seconds: 30));
     return _decode(response);
   }
 
@@ -443,7 +443,7 @@ class ApiClient {
           headers: _headers(token: token),
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 6));
+        .timeout(const Duration(seconds: 30));
     return _decode(response);
   }
 
@@ -458,7 +458,7 @@ class ApiClient {
           headers: _headers(token: token),
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 6));
+        .timeout(const Duration(seconds: 30));
     return _decode(response);
   }
 
@@ -473,21 +473,21 @@ class ApiClient {
           headers: _headers(token: token),
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 6));
+        .timeout(const Duration(seconds: 30));
     return _decode(response);
   }
 
   Future<void> _delete(String path, {String? token}) async {
     final response = await _client
         .delete(Uri.parse('$baseUrl$path'), headers: _headers(token: token))
-        .timeout(const Duration(seconds: 6));
+        .timeout(const Duration(seconds: 30));
     _decode(response);
   }
 
   Future<Map<String, dynamic>> _deleteJson(String path, {String? token}) async {
     final response = await _client
         .delete(Uri.parse('$baseUrl$path'), headers: _headers(token: token))
-        .timeout(const Duration(seconds: 6));
+        .timeout(const Duration(seconds: 30));
     return _decode(response);
   }
 

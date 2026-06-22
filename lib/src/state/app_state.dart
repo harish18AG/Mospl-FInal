@@ -1384,7 +1384,13 @@ class AppState extends ChangeNotifier {
     try {
       _applyAuthSession(await _apiClient.loginSession(email: email.trim(), password: password));
     } catch (_) {
-      await _syncBackendFirebaseSession();
+      // First attempt failed (e.g. Render cold start). Wait and retry once.
+      await Future<void>.delayed(const Duration(seconds: 10));
+      try {
+        _applyAuthSession(await _apiClient.loginSession(email: email.trim(), password: password));
+      } catch (_) {
+        await _syncBackendFirebaseSession();
+      }
     }
   }
 
@@ -1415,19 +1421,36 @@ class AppState extends ChangeNotifier {
     if (!_firebaseReady) return;
     final user = firebase_auth.FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    try {
-      final idToken = await user.getIdToken();
-      if (idToken == null || idToken.isEmpty) return;
-      _applyAuthSession(await _apiClient.firebaseAuthSession(idToken));
-      if (backendToken != null) await _persistUser();
-    } catch (_) {
-      backendToken = null;
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final idToken = await user.getIdToken(attempt > 0); // force refresh on retry
+        if (idToken == null || idToken.isEmpty) return;
+        _applyAuthSession(await _apiClient.firebaseAuthSession(idToken));
+        if (backendToken != null) await _persistUser();
+        return; // success
+      } catch (_) {
+        if (attempt < 2) {
+          await Future<void>.delayed(Duration(seconds: (attempt + 1) * 8));
+        } else {
+          backendToken = null;
+        }
+      }
     }
   }
 
   void _applyAuthSession(AuthSession session) {
+    final hadToken = backendToken != null;
     backendToken = session.token;
     if (session.user != null) currentUser = session.user;
+    // If we just obtained a token for the first time (e.g. after a cold-start
+    // retry), reload cart + wishlist in the background so the web cart updates
+    // without requiring the user to sign out and back in.
+    if (!hadToken && backendToken != null) {
+      Future.wait([
+        loadCart(notify: true),
+        loadWishlist(notify: false),
+      ]).ignore();
+    }
   }
 
   Future<void> _loadLocalAddresses() async {
