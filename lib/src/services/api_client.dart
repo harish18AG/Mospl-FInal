@@ -99,9 +99,11 @@ class ApiClient {
   }
 
   Future<AuthSession> firebaseAuthSession(String idToken) async {
+    // 10-second cap – on Render cold-start the 30s default would block the UI
+    // for the full duration before the retry back-off kicks in.
     final json = await _postJson('/api/auth/firebase-session', {
       'idToken': idToken,
-    });
+    }).timeout(const Duration(seconds: 10));
     return AuthSession.fromJson(json);
   }
 

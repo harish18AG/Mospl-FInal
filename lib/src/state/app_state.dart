@@ -1105,6 +1105,34 @@ class AppState extends ChangeNotifier {
     required String razorpayPaymentId,
     required String razorpaySignature,
   }) async {
+    // --- Optimistic update: mark as Paid immediately so the UI responds instantly ---
+    _replaceOrder(
+      orderId,
+      (order) => order.copyWith(
+        paymentStatus: 'Paid',
+        razorpayOrderId: razorpayOrderId,
+        razorpayPaymentId: razorpayPaymentId,
+      ),
+    );
+    notifyListeners();
+
+    // --- Persist to backend in the background (does not block navigation) ---
+    _pushPaymentToBackend(
+      orderId: orderId,
+      amount: amount,
+      razorpayOrderId: razorpayOrderId,
+      razorpayPaymentId: razorpayPaymentId,
+      razorpaySignature: razorpaySignature,
+    ).ignore();
+  }
+
+  Future<void> _pushPaymentToBackend({
+    required String orderId,
+    required int amount,
+    required String razorpayOrderId,
+    required String razorpayPaymentId,
+    required String razorpaySignature,
+  }) async {
     if (backendToken == null) await _syncBackendFirebaseSession();
     if (backendToken != null) {
       try {
@@ -1118,19 +1146,11 @@ class AppState extends ChangeNotifier {
         );
         payments.removeWhere((item) => item.paymentId == payment.paymentId);
         payments.insert(0, payment);
+        notifyListeners();
       } catch (error) {
         catalogError = error.toString();
       }
     }
-    _replaceOrder(
-      orderId,
-      (order) => order.copyWith(
-        paymentStatus: 'Paid',
-        razorpayOrderId: razorpayOrderId,
-        razorpayPaymentId: razorpayPaymentId,
-      ),
-    );
-    notifyListeners();
   }
 
   void markPaymentFailed(String orderId) {
@@ -1648,7 +1668,9 @@ class AppState extends ChangeNotifier {
         return; // success
       } catch (_) {
         if (attempt < 2) {
-          await Future<void>.delayed(Duration(seconds: (attempt + 1) * 8));
+          // Short back-off: 2 s then 4 s (was 8 s / 16 s) so Render cold-starts
+          // don't block the UI for more than ~6 seconds total.
+          await Future<void>.delayed(Duration(seconds: (attempt + 1) * 2));
         } else {
           backendToken = null;
         }
