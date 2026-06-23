@@ -1247,7 +1247,7 @@ class AppState extends ChangeNotifier {
       items: List<CartLine>.from(cart),
       address: address,
       status: 'Confirmed',
-      paymentStatus: paymentMethod == 'Razorpay' ? 'Pending' : 'Paid',
+      paymentStatus: (paymentMethod == 'Razorpay' || paymentMethod == 'COD') ? 'Pending' : 'Paid',
       paymentMethod: paymentMethod,
       total: cartTotal,
       createdAt: DateTime.now(),

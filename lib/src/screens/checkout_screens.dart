@@ -361,8 +361,15 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   }
 }
 
-class PaymentMethodScreen extends StatelessWidget {
+class PaymentMethodScreen extends StatefulWidget {
   const PaymentMethodScreen({super.key});
+
+  @override
+  State<PaymentMethodScreen> createState() => _PaymentMethodScreenState();
+}
+
+class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
+  String _selectedMethod = 'Razorpay';
 
   @override
   Widget build(BuildContext context) {
@@ -380,45 +387,200 @@ class PaymentMethodScreen extends StatelessWidget {
         ),
       );
     }
+
+    final isRazorpay = _selectedMethod == 'Razorpay';
+    final isCOD = _selectedMethod == 'COD';
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Payment Method')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.radio_button_checked),
-              title: Text('Razorpay Test Mode'),
-              subtitle: Text('Use INR only. Test card: 4111 1111 1111 1111'),
-              trailing: Icon(Icons.payment_outlined),
+      appBar: AppBar(
+        title: const Text('Payment Method', style: TextStyle(fontWeight: FontWeight.w800)),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Select how you want to pay',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.account_balance_wallet_outlined),
-              title: const Text('Cash on Delivery disabled'),
-              subtitle: const Text('Secure INR checkout through Razorpay.'),
+            const SizedBox(height: 16),
+            
+            // Razorpay Card
+            GestureDetector(
+              onTap: () => setState(() => _selectedMethod = 'Razorpay'),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isRazorpay ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+                    width: isRazorpay ? 2.5 : 1,
+                  ),
+                  color: isRazorpay
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04)
+                      : Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: isRazorpay
+                          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isRazorpay ? Icons.radio_button_checked : Icons.radio_button_off,
+                        color: isRazorpay ? Theme.of(context).colorScheme.primary : Colors.grey.shade500,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Razorpay Test Mode',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isRazorpay ? Theme.of(context).colorScheme.primary : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Use INR only. Test card: 4111 1111 1111 1111',
+                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.payment_outlined,
+                        color: isRazorpay ? Theme.of(context).colorScheme.primary : Colors.grey.shade400,
+                        size: 28,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: state.cart.isEmpty
-                ? null
-                : () async {
-                    try {
-                      final order = await context.read<AppState>().placeOrder(address: address, paymentMethod: 'Razorpay');
-                      if (context.mounted) context.push('/razorpay-payment/${order.orderId}');
-                    } catch (error) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
-                      );
-                    }
-                  },
-            child: Text('Continue to Razorpay • ${inr(state.cartTotal)}'),
-          ),
-        ],
+            
+            const SizedBox(height: 16),
+            
+            // COD Card
+            GestureDetector(
+              onTap: () => setState(() => _selectedMethod = 'COD'),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isCOD ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+                    width: isCOD ? 2.5 : 1,
+                  ),
+                  color: isCOD
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04)
+                      : Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: isCOD
+                          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCOD ? Icons.radio_button_checked : Icons.radio_button_off,
+                        color: isCOD ? Theme.of(context).colorScheme.primary : Colors.grey.shade500,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Cash on Delivery',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isCOD ? Theme.of(context).colorScheme.primary : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Pay with cash upon delivery of your order.',
+                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.local_shipping_outlined,
+                        color: isCOD ? Theme.of(context).colorScheme.primary : Colors.grey.shade400,
+                        size: 28,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 32),
+            
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: state.cart.isEmpty
+                  ? null
+                  : () async {
+                      try {
+                        if (_selectedMethod == 'Razorpay') {
+                          final order = await context.read<AppState>().placeOrder(address: address, paymentMethod: 'Razorpay');
+                          if (context.mounted) context.push('/razorpay-payment/${order.orderId}');
+                        } else {
+                          // Cash on Delivery
+                          final order = await context.read<AppState>().placeOrder(address: address, paymentMethod: 'COD');
+                          if (context.mounted) {
+                            context.go('/track-order/${order.orderId}');
+                          }
+                        }
+                      } catch (error) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+                        );
+                      }
+                    },
+              child: Text(
+                _selectedMethod == 'Razorpay'
+                    ? 'Continue to Razorpay • ${inr(state.cartTotal)}'
+                    : 'Confirm COD Order • ${inr(state.cartTotal)}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
