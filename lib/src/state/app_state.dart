@@ -996,7 +996,111 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadAdminData({bool notify = true}) async {
-    if (backendToken == null || currentUser?.isAdmin != true) return;
+    if (currentUser?.isAdmin != true) return;
+
+    if (_firebaseReady) {
+      try {
+        final db = firestore.FirebaseFirestore.instance;
+
+        // 1. Fetch products
+        final productsSnapshot = await db.collection('products').get();
+        final dbProducts = productsSnapshot.docs
+            .map((doc) => Product.fromMap(doc.data()))
+            .toList();
+
+        // 2. Fetch orders
+        final ordersSnapshot = await db.collection('orders').get();
+        final dbOrders = ordersSnapshot.docs
+            .map((doc) => _orderFromBackend({...doc.data(), 'orderId': doc.id}))
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+        // 3. Fetch users
+        final usersSnapshot = await db.collection('users').get();
+        final dbUsers = usersSnapshot.docs
+            .map((doc) => AppUser.fromMap(doc.data()))
+            .toList();
+
+        // 4. Fetch inventory
+        final inventorySnapshot = await db.collection('inventory').get();
+        final dbInventory = inventorySnapshot.docs
+            .map((doc) => InventoryItem.fromMap(doc.data()))
+            .toList();
+
+        // 5. Fetch payments
+        final paymentsSnapshot = await db.collection('payments').get();
+        final dbPayments = paymentsSnapshot.docs
+            .map((doc) => PaymentRecord.fromMap(doc.data()))
+            .toList();
+
+        // Compute metrics
+        final revenue = dbOrders.fold<int>(0, (sum, order) => sum + order.total);
+        final lowStock = dbInventory
+            .where((item) => item.stock < item.lowStockThreshold)
+            .length;
+
+        adminMetrics = AdminMetrics(
+          revenue: revenue,
+          products: dbProducts.length,
+          orders: dbOrders.length,
+          users: dbUsers.length,
+          lowStock: lowStock,
+          payments: dbPayments.length,
+        );
+
+        orders
+          ..clear()
+          ..addAll(dbOrders);
+
+        inventory
+          ..clear()
+          ..addAll(dbInventory);
+
+        adminUsers
+          ..clear()
+          ..addAll(dbUsers);
+
+        payments
+          ..clear()
+          ..addAll(dbPayments);
+
+        adminProductPerformance
+          ..clear()
+          ..addAll(dbProducts.where((p) => p.isBestSeller).take(10));
+
+        // Weekly sales trend (last 7 days)
+        revenueByDay.clear();
+        for (int i = 6; i >= 0; i--) {
+          final date = DateTime.now().subtract(Duration(days: i));
+          final key = DateTime(date.year, date.month, date.day);
+          final dailyRevenue = dbOrders
+              .where((o) {
+                final oc = o.createdAt;
+                return oc.year == key.year && oc.month == key.month && oc.day == key.day;
+              })
+              .fold<int>(0, (sum, o) => sum + o.total);
+          revenueByDay.add(dailyRevenue);
+        }
+
+        // Sales by category
+        salesByCategory.clear();
+        final categoriesSet = dbProducts.map((p) => p.category).toSet();
+        for (final cat in categoriesSet) {
+          final catProducts = dbProducts.where((p) => p.category == cat).length;
+          salesByCategory.add({
+            'category': cat,
+            'sales': catProducts,
+          });
+        }
+
+        if (notify) notifyListeners();
+        return; // Success, bypass backend dashboard fetch
+      } catch (error) {
+        catalogError = 'Direct Firestore fetch failed, falling back to backend: $error';
+      }
+    }
+
+    if (backendToken == null) return;
     try {
       final dashboard = await _apiClient.fetchAdminDashboard(backendToken!);
       final analytics = await _apiClient.fetchAdminAnalytics(backendToken!);
@@ -1007,11 +1111,9 @@ class AppState extends ChangeNotifier {
           .whereType<Map>()
           .map((item) => _orderFromBackend(item.cast<String, dynamic>()))
           .toList();
-      if (orders.isEmpty) {
-        orders
-          ..clear()
-          ..addAll(recentOrders);
-      }
+      orders
+        ..clear()
+        ..addAll(recentOrders);
       adminProductPerformance
         ..clear()
         ..addAll(
