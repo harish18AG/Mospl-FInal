@@ -1,6 +1,7 @@
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -372,6 +373,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _selectedImage = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Subscribe to real-time Firestore review stream for this product
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppState>().subscribeProductReviews(widget.productId);
+    });
+  }
+
+  @override
+  void dispose() {
+    context.read<AppState>().unsubscribeProductReviews();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final product = state.productById(widget.productId);
@@ -419,12 +435,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
       body: ListView(
         children: [
-          InkWell(
-            onTap: () => context.push('/gallery/${product.productId}?index=$_selectedImage'),
+          Center(
             child: Container(
+              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
               color: Theme.of(context).cardColor,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 420),
+              child: InkWell(
+                onTap: () => context.push('/gallery/${product.productId}?index=$_selectedImage'),
                 child: AspectRatio(
                   aspectRatio: 1,
                   child: ProductImage(
@@ -470,7 +486,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               children: [
                 Text(product.name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 8),
-                RatingSummary(product: product),
+                InkWell(
+                  onTap: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => _ProductReviewDialog(productId: product.productId),
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                    child: RatingSummary(product: product),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 PriceRow(product: product),
                 const SizedBox(height: 8),
@@ -520,6 +546,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   title: Text(product.warranty),
                   subtitle: const Text('Genuine leather product inspired by Online Madras MOSPL catalog.'),
                 ),
+                const Divider(height: 32),
+                // ── Ratings & Reviews section ────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Ratings & Reviews',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => _ProductReviewDialog(productId: product.productId),
+                      ),
+                      icon: const Icon(Icons.rate_review_outlined, size: 18),
+                      label: const Text('Write a Review'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _ProductReviewsList(productId: product.productId),
+                const SizedBox(height: 8),
                 SectionHeader(
                   title: 'Recommended Products',
                   actionLabel: 'View all',
@@ -552,6 +601,173 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         const SnackBar(content: Text('Could not open source listing.')),
       );
     }
+  }
+}
+
+// ── Reviews list for a single product ────────────────────────────────────────
+class _ProductReviewsList extends StatelessWidget {
+  const _ProductReviewsList({required this.productId});
+  final String productId;
+
+  @override
+  Widget build(BuildContext context) {
+    final productReviews = context.watch<AppState>().reviewsForProduct(productId);
+    if (productReviews.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.star_border, color: Color(0xffffb300), size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'No reviews yet. Be the first!',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: productReviews.map((review) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      child: Text(
+                        review.userName.isNotEmpty ? review.userName[0].toUpperCase() : 'U',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(review.userName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text(
+                            '${review.createdAt.day}/${review.createdAt.month}/${review.createdAt.year}',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    RatingBarIndicator(
+                      rating: review.rating,
+                      itemSize: 16,
+                      itemBuilder: (context, _) => const Icon(Icons.star, color: Color(0xffffb300)),
+                    ),
+                  ],
+                ),
+                if (review.comment.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(review.comment),
+                ],
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ── Write-review dialog ───────────────────────────────────────────────────────
+class _ProductReviewDialog extends StatefulWidget {
+  const _ProductReviewDialog({required this.productId});
+  final String productId;
+
+  @override
+  State<_ProductReviewDialog> createState() => _ProductReviewDialogState();
+}
+
+class _ProductReviewDialogState extends State<_ProductReviewDialog> {
+  final _comment = TextEditingController();
+  double _rating = 5;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Write a Review'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Your rating:', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            RatingBar.builder(
+              initialRating: _rating,
+              minRating: 1,
+              allowHalfRating: true,
+              itemSize: 36,
+              itemBuilder: (context, _) => const Icon(Icons.star, color: Color(0xffff9800)),
+              onRatingUpdate: (value) => setState(() => _rating = value),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _comment,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Your review (optional)',
+                alignLabelWithHint: true,
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: _submitting
+              ? null
+              : () async {
+                  setState(() {
+                    _submitting = true;
+                    _error = null;
+                  });
+                  try {
+                    await context.read<AppState>().submitReview(
+                          productId: widget.productId,
+                          rating: _rating,
+                          comment: _comment.text.trim(),
+                        );
+                    if (context.mounted) Navigator.of(context).pop();
+                  } catch (e) {
+                    setState(() {
+                      _submitting = false;
+                      _error = e.toString().replaceFirst('Bad state: ', '');
+                    });
+                  }
+                },
+          child: _submitting
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Submit'),
+        ),
+      ],
+    );
   }
 }
 

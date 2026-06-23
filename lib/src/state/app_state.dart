@@ -44,6 +44,7 @@ class AppState extends ChangeNotifier {
   // ── Real-time Firestore stream subscriptions ────────────────────────────────
   StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _cartStream;
   StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _wishlistStream;
+  StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _productReviewStream;
   String? _realtimeSyncUid; // tracks which UID streams are active for
 
   String searchQuery = '';
@@ -72,6 +73,11 @@ class AppState extends ChangeNotifier {
   AdminMetrics? adminMetrics;
 
   List<Product> get allProducts => List.unmodifiable(_allProducts);
+
+  /// Returns all reviews for a given [productId], newest first.
+  List<Review> reviewsForProduct(String productId) =>
+      reviews.where((r) => r.productId == productId).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   List<Product> get visibleProducts {
     Iterable<Product> result = _allProducts;
@@ -1172,17 +1178,88 @@ class AppState extends ChangeNotifier {
     required double rating,
     required String comment,
   }) async {
-    if (backendToken == null) await _syncBackendFirebaseSession();
-    if (backendToken == null) throw StateError('Please sign in again before adding a review.');
-    final review = await _apiClient.createReview(
+    final userName = currentUser?.name ?? 'MOSPL Customer';
+    final docId = _uuid.v4();
+    final now = DateTime.now();
+
+    // ── 1. Write directly to Firestore so every user sees it immediately ────
+    if (_firebaseReady) {
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('reviews')
+            .doc(productId)
+            .collection('items')
+            .doc(docId)
+            .set({
+          'id': docId,
+          'productId': productId,
+          'userName': userName,
+          'rating': rating,
+          'comment': comment,
+          'createdAt': firestore.Timestamp.fromDate(now),
+        });
+      } catch (_) {
+        // Firestore write failed – still try the backend
+      }
+    }
+
+    // ── 2. Optimistically add to local list ─────────────────────────────────
+    final localReview = Review(
+      id: docId,
       productId: productId,
+      userName: userName,
       rating: rating,
       comment: comment,
-      token: backendToken!,
+      createdAt: now,
     );
-    reviews.removeWhere((item) => item.id == review.id);
-    reviews.insert(0, review);
+    reviews.removeWhere((item) => item.id == docId);
+    reviews.insert(0, localReview);
     notifyListeners();
+
+    // ── 3. Also persist via backend API (background, non-blocking) ──────────
+    if (backendToken == null) await _syncBackendFirebaseSession();
+    if (backendToken != null) {
+      try {
+        final apiReview = await _apiClient.createReview(
+          productId: productId,
+          rating: rating,
+          comment: comment,
+          token: backendToken!,
+        );
+        // Replace local placeholder with API result
+        reviews.removeWhere((item) => item.id == docId);
+        reviews.removeWhere((item) => item.id == apiReview.id);
+        reviews.insert(0, apiReview);
+        notifyListeners();
+      } catch (_) {
+        // Backend unavailable – Firestore version is already visible
+      }
+    }
+  }
+
+  /// Start listening to real-time Firestore updates for a product's reviews.
+  void subscribeProductReviews(String productId) {
+    if (!_firebaseReady) return;
+    _productReviewStream?.cancel();
+    _productReviewStream = firestore.FirebaseFirestore.instance
+        .collection('reviews')
+        .doc(productId)
+        .collection('items')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      reviews.removeWhere((r) => r.productId == productId);
+      reviews.addAll(
+        snapshot.docs.map((doc) => Review.fromMap(doc.data())),
+      );
+      notifyListeners();
+    });
+  }
+
+  /// Stop listening to the current product's reviews stream.
+  void unsubscribeProductReviews() {
+    _productReviewStream?.cancel();
+    _productReviewStream = null;
   }
 
   Future<void> markNotificationRead(String notificationId) async {

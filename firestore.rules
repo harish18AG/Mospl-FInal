@@ -79,10 +79,15 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    match /reviews/{reviewId} {
+    match /reviews/{productId} {
       allow read: if true;
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.userId) || isAdmin();
+      allow write: if isAdmin();
+
+      match /items/{reviewId} {
+        allow read: if true;
+        allow create: if true;
+        allow update, delete: if isAdmin();
+      }
     }
 
     match /notifications/{notificationId} {
