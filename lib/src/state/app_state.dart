@@ -200,9 +200,8 @@ class AppState extends ChangeNotifier {
         name: name,
         role: role,
       );
-      await _syncBackendFirebaseSession();
+      _syncBackendFirebaseSession().ignore();
       await loadAuthenticatedData(notify: false);
-      // Start real-time Firestore streams so any mobile change is immediately reflected
       _startRealtimeSync(firebaseUser?.uid);
     }
     notifyListeners();
@@ -246,8 +245,9 @@ class AppState extends ChangeNotifier {
           role: 'customer',
         );
       }
-      await _syncBackendLogin(email: email, password: password);
+      _syncBackendLogin(email: email, password: password).ignore();
       rememberMe = remember;
+      _startRealtimeSync(_firebaseUid);
       await loadAuthenticatedData(notify: false);
       authLoading = false;
       await _persistUser();
@@ -297,8 +297,9 @@ class AppState extends ChangeNotifier {
           role: 'customer',
         );
       }
-      await _syncBackendRegister(name: name, email: email, password: password);
+      _syncBackendRegister(name: name, email: email, password: password).ignore();
       rememberMe = remember;
+      _startRealtimeSync(_firebaseUid);
       await loadAuthenticatedData(notify: false);
       authLoading = false;
       await _persistUser();
@@ -457,6 +458,45 @@ class AppState extends ChangeNotifier {
     _realtimeSyncUid = null;
   }
 
+  Future<void> _updateFirestoreCart() async {
+    final uid = _firebaseUid;
+    if (uid == null) return;
+    try {
+      final now = DateTime.now().toIso8601String();
+      final itemsList = cart.map((line) => {
+        'productId': line.product.productId,
+        'quantity': line.quantity,
+        'price': line.product.price,
+        'product': line.product.toMap(),
+      }).toList();
+
+      await firestore.FirebaseFirestore.instance
+          .collection('carts')
+          .doc(uid)
+          .set({
+            'userId': uid,
+            'items': itemsList,
+            'updatedAt': now,
+          }, firestore.SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  Future<void> _updateFirestoreWishlist() async {
+    final uid = _firebaseUid;
+    if (uid == null) return;
+    try {
+      final now = DateTime.now().toIso8601String();
+      await firestore.FirebaseFirestore.instance
+          .collection('wishlists')
+          .doc(uid)
+          .set({
+            'userId': uid,
+            'productIds': wishlist.toList(),
+            'updatedAt': now,
+          }, firestore.SetOptions(merge: true));
+    } catch (_) {}
+  }
+
   void updateSearch(String value) {
     searchQuery = value;
     notifyListeners();
@@ -506,19 +546,24 @@ class AppState extends ChangeNotifier {
     }
     _pushNotification('Added to cart', product.name);
     notifyListeners();
-    if (backendToken == null) await _syncBackendFirebaseSession();
-    if (backendToken == null) return;
-    try {
-      final saved = await _apiClient.addCartItem(
-        productId: product.productId,
-        quantity: quantity,
-        token: backendToken!,
-      );
-      cart
-        ..clear()
-        ..addAll(saved);
-    } catch (error) {
-      catalogError = error.toString();
+
+    if (_firebaseUid != null) {
+      await _updateFirestoreCart();
+    } else {
+      if (backendToken == null) await _syncBackendFirebaseSession();
+      if (backendToken == null) return;
+      try {
+        final saved = await _apiClient.addCartItem(
+          productId: product.productId,
+          quantity: quantity,
+          token: backendToken!,
+        );
+        cart
+          ..clear()
+          ..addAll(saved);
+      } catch (error) {
+        catalogError = error.toString();
+      }
     }
     notifyListeners();
   }
@@ -532,16 +577,21 @@ class AppState extends ChangeNotifier {
       cart[index] = cart[index].copyWith(quantity: quantity);
     }
     notifyListeners();
-    if (backendToken == null) return;
-    try {
-      final saved = quantity <= 0
-          ? await _apiClient.removeCartItem(productId, backendToken!)
-          : await _apiClient.updateCartItem(productId: productId, quantity: quantity, token: backendToken!);
-      cart
-        ..clear()
-        ..addAll(saved);
-    } catch (error) {
-      catalogError = error.toString();
+
+    if (_firebaseUid != null) {
+      await _updateFirestoreCart();
+    } else {
+      if (backendToken == null) return;
+      try {
+        final saved = quantity <= 0
+            ? await _apiClient.removeCartItem(productId, backendToken!)
+            : await _apiClient.updateCartItem(productId: productId, quantity: quantity, token: backendToken!);
+        cart
+          ..clear()
+          ..addAll(saved);
+      } catch (error) {
+        catalogError = error.toString();
+      }
     }
     notifyListeners();
   }
@@ -549,14 +599,19 @@ class AppState extends ChangeNotifier {
   Future<void> removeFromCart(String productId) async {
     cart.removeWhere((line) => line.product.productId == productId);
     notifyListeners();
-    if (backendToken == null) return;
-    try {
-      final saved = await _apiClient.removeCartItem(productId, backendToken!);
-      cart
-        ..clear()
-        ..addAll(saved);
-    } catch (error) {
-      catalogError = error.toString();
+
+    if (_firebaseUid != null) {
+      await _updateFirestoreCart();
+    } else {
+      if (backendToken == null) return;
+      try {
+        final saved = await _apiClient.removeCartItem(productId, backendToken!);
+        cart
+          ..clear()
+          ..addAll(saved);
+      } catch (error) {
+        catalogError = error.toString();
+      }
     }
     notifyListeners();
   }
@@ -569,17 +624,22 @@ class AppState extends ChangeNotifier {
       _pushNotification('Wishlist updated', '${product.name} saved for later.');
     }
     notifyListeners();
-    if (backendToken == null) await _syncBackendFirebaseSession();
-    if (backendToken == null) return;
-    try {
-      final saved = shouldAdd
-          ? await _apiClient.addWishlistProduct(product.productId, backendToken!)
-          : await _apiClient.removeWishlistProduct(product.productId, backendToken!);
-      wishlist
-        ..clear()
-        ..addAll(saved);
-    } catch (error) {
-      catalogError = error.toString();
+
+    if (_firebaseUid != null) {
+      await _updateFirestoreWishlist();
+    } else {
+      if (backendToken == null) await _syncBackendFirebaseSession();
+      if (backendToken == null) return;
+      try {
+        final saved = shouldAdd
+            ? await _apiClient.addWishlistProduct(product.productId, backendToken!)
+            : await _apiClient.removeWishlistProduct(product.productId, backendToken!);
+        wishlist
+          ..clear()
+          ..addAll(saved);
+      } catch (error) {
+        catalogError = error.toString();
+      }
     }
     notifyListeners();
   }
@@ -588,7 +648,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadAuthenticatedData({bool notify = true}) async {
     if (backendToken == null) {
-      await _syncBackendFirebaseSession();
+      _syncBackendFirebaseSession().ignore();
     }
     await _loadLocalAddresses();
     if (backendToken == null) {
@@ -642,7 +702,7 @@ class AppState extends ChangeNotifier {
   Future<void> loadAddresses({bool notify = true}) async {
     await _loadLocalAddresses();
     if (backendToken == null) {
-      await _syncBackendFirebaseSession();
+      _syncBackendFirebaseSession().ignore();
     }
     if (backendToken == null) {
       await _loadFirestoreAddresses();
@@ -662,8 +722,18 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addAddress(ShippingAddress address) async {
+    if (_firebaseUid != null) {
+      final addressToStore = await _saveFirestoreAddress(address);
+      _upsertLocalAddress(addressToStore);
+      await _saveLocalAddresses();
+      notifyListeners();
+      if (backendToken != null) {
+        _apiClient.createAddress(address, backendToken!).ignore();
+      }
+      return;
+    }
     if (backendToken == null) {
-      await _syncBackendFirebaseSession();
+      _syncBackendFirebaseSession().ignore();
     }
     if (backendToken == null) {
       final addressToStore = await _saveFirestoreAddress(address);
