@@ -1289,7 +1289,24 @@ class AppState extends ChangeNotifier {
     );
     notifyListeners();
 
-    // --- Persist to backend in the background (does not block navigation) ---
+    // --- Persist to Firestore directly (fastest path) ---
+    if (_firebaseReady) {
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('orders')
+            .doc(orderId)
+            .set({
+          'paymentStatus': 'Paid',
+          'razorpayOrderId': razorpayOrderId,
+          'razorpayPaymentId': razorpayPaymentId,
+          'razorpaySignature': razorpaySignature,
+          'paidAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        }, firestore.SetOptions(merge: true));
+      } catch (_) {}
+    }
+
+    // --- Also persist to backend if token available ---
     _pushPaymentToBackend(
       orderId: orderId,
       amount: amount,
@@ -1332,6 +1349,15 @@ class AppState extends ChangeNotifier {
       (order) => order.copyWith(paymentStatus: 'Failed'),
     );
     notifyListeners();
+    // Persist Failed status to Firestore
+    if (_firebaseReady) {
+      firestore.FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderId)
+          .set({'paymentStatus': 'Failed', 'updatedAt': DateTime.now().toIso8601String()},
+              firestore.SetOptions(merge: true))
+          .ignore();
+    }
   }
 
   Future<Map<String, dynamic>> retryRazorpayPayment(String orderId) async {
@@ -1530,7 +1556,31 @@ class AppState extends ChangeNotifier {
     required String status,
     required String paymentStatus,
   }) async {
-    if (backendToken == null || currentUser?.isAdmin != true) return;
+    if (currentUser?.isAdmin != true) return;
+    // Update Firestore directly (works without backend token)
+    if (_firebaseReady) {
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('orders')
+            .doc(orderId)
+            .set({
+          'status': status,
+          'paymentStatus': paymentStatus,
+          'updatedAt': DateTime.now().toIso8601String(),
+        }, firestore.SetOptions(merge: true));
+        _replaceOrder(
+          orderId,
+          (order) => order.copyWith(status: status, paymentStatus: paymentStatus),
+        );
+        notifyListeners();
+        return;
+      } catch (error) {
+        catalogError = 'Order update failed: $error';
+        notifyListeners();
+      }
+    }
+    // Fallback: backend API
+    if (backendToken == null) return;
     try {
       final saved = await _apiClient.updateOrderStatus(
         orderId: orderId,
