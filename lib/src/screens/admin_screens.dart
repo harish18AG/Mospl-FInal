@@ -71,10 +71,6 @@ class AdminDashboardScreen extends StatelessWidget {
           _adminLink(context, 'Orders', Icons.receipt_long_outlined, '/admin/orders'),
           _adminLink(context, 'Users', Icons.people_outline, '/admin/users'),
           _adminLink(context, 'Reviews', Icons.rate_review_outlined, '/admin/reviews'),
-          _adminLink(context, 'Notifications', Icons.notifications_none, '/admin/notifications'),
-          _adminLink(context, 'Inventory', Icons.warehouse_outlined, '/admin/inventory'),
-          _adminLink(context, 'Analytics', Icons.analytics_outlined, '/admin/analytics'),
-          _adminLink(context, 'Revenue Statistics', Icons.currency_rupee, '/admin/revenue'),
           _adminLink(context, 'Sales Charts', Icons.show_chart, '/admin/sales-charts'),
           const SectionHeader(title: 'Recent Orders'),
           if (state.orders.isEmpty)

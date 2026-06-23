@@ -32,6 +32,25 @@ const addReview = asyncHandler(async (req, res) => {
       createdAt: new Date().toISOString(),
     };
     await ref.set(review);
+
+    // Update product rating and reviewCount in Firestore
+    try {
+      const productId = req.body.productId;
+      const reviewsSnapshot = await db.collection('reviews').where('productId', '==', productId).get();
+      const count = reviewsSnapshot.docs.length;
+      let avgRating = 0;
+      if (count > 0) {
+        const sum = reviewsSnapshot.docs.reduce((total, doc) => total + (Number(doc.data().rating) || 0), 0);
+        avgRating = sum / count;
+      }
+      await db.collection('products').doc(productId).update({
+        rating: avgRating,
+        reviewCount: count
+      });
+    } catch (e) {
+      console.error('Failed to update product rating in Firestore:', e);
+    }
+
     res.status(201).json({ ok: true, review });
     return;
   }

@@ -481,6 +481,9 @@ class AppState extends ChangeNotifier {
     _stopRealtimeSync(); // cancel any previous streams
     _realtimeSyncUid = uid;
 
+    // Also subscribe to reviews
+    subscribeAllReviews();
+
     final db = firestore.FirebaseFirestore.instance;
 
     // ── Cart stream ──────────────────────────────────────────────────────────
@@ -1394,7 +1397,48 @@ class AppState extends ChangeNotifier {
       'createdAt': firestore.Timestamp.fromDate(now),
     });
 
-    // ── 2. Optimistically add to local list (real-time stream will update) ──
+    // ── 2. Calculate new average rating and review count from Firestore ─────
+    try {
+      final reviewsSnap = await firestore.FirebaseFirestore.instance
+          .collection('reviews')
+          .doc(productId)
+          .collection('items')
+          .get();
+
+      final docs = reviewsSnap.docs;
+      final count = docs.length;
+      double avgRating = 0.0;
+      if (count > 0) {
+        final total = docs.fold<double>(0, (sum, doc) {
+          final r = doc.data()['rating'];
+          return sum + (r is num ? r.toDouble() : 0.0);
+        });
+        avgRating = total / count;
+      }
+
+      // Update the product document in Firestore
+      await firestore.FirebaseFirestore.instance
+          .collection('products')
+          .doc(productId)
+          .update({
+        'rating': avgRating,
+        'reviewCount': count,
+      });
+
+      // Update local product copy
+      final prodIndex = _allProducts.indexWhere((p) => p.productId == productId);
+      if (prodIndex >= 0) {
+        final p = _allProducts[prodIndex];
+        _allProducts[prodIndex] = p.copyWith(
+          rating: avgRating,
+          reviewCount: count,
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to update product rating/reviewCount in Firestore: $e');
+    }
+
+    // ── 3. Optimistically add to local list (real-time stream will update) ──
     final localReview = Review(
       id: docId,
       productId: productId,
@@ -1419,7 +1463,9 @@ class AppState extends ChangeNotifier {
         ..clear()
         ..addAll(snapshot.docs.map((doc) => Review.fromMap(doc.data())));
       notifyListeners();
-    }, onError: (_) {/* silently ignore */});
+    }, onError: (error) {
+      debugPrint('Firestore reviews collectionGroup stream error: $error');
+    });
   }
 
   double getProductLiveRating(String productId) {
