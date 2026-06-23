@@ -1201,6 +1201,8 @@ class AppState extends ChangeNotifier {
               'message': message,
               'status': 'open',
               'createdAt': now.toIso8601String(),
+              'userEmail': currentUser?.email ?? firebase_auth.FirebaseAuth.instance.currentUser?.email,
+              'userName': currentUser?.name ?? firebase_auth.FirebaseAuth.instance.currentUser?.displayName,
             });
         
         supportTickets.insert(0, ticket);
