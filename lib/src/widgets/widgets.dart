@@ -207,6 +207,8 @@ class ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final wished = app.isWishlisted(product.productId);
+    final liveRating = app.getProductLiveRating(product.productId);
+    final liveReviewCount = app.getProductLiveReviewCount(product.productId);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -262,12 +264,12 @@ class ProductCard extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        product.rating > 0 ? Icons.star : Icons.star_border,
+                        liveRating > 0 ? Icons.star : Icons.star_border,
                         color: const Color(0xffffb300),
                         size: 16,
                       ),
                       const SizedBox(width: 3),
-                      Text(product.rating > 0 ? '${product.rating.toStringAsFixed(1)} (${product.reviewCount})' : 'No Rating yet (${product.reviewCount})'),
+                      Text(liveRating > 0 ? '${liveRating.toStringAsFixed(1)} ($liveReviewCount)' : 'No Rating yet ($liveReviewCount)'),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -543,8 +545,11 @@ class RatingSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (product.rating <= 0) {
-      final reviewLabel = product.reviewCount == 1 ? '1 review' : '${product.reviewCount} reviews';
+    final app = context.watch<AppState>();
+    final liveRating = app.getProductLiveRating(product.productId);
+    final liveReviewCount = app.getProductLiveReviewCount(product.productId);
+    if (liveRating <= 0) {
+      final reviewLabel = liveReviewCount == 1 ? '1 review' : '$liveReviewCount reviews';
       return Row(
         children: [
           const Icon(Icons.star_border, color: Color(0xffffb300), size: 18),
@@ -556,12 +561,12 @@ class RatingSummary extends StatelessWidget {
     return Row(
       children: [
         RatingBarIndicator(
-          rating: product.rating,
+          rating: liveRating,
           itemSize: 18,
           itemBuilder: (context, index) => const Icon(Icons.star, color: Color(0xffffb300)),
         ),
         const SizedBox(width: 8),
-        Text('${product.rating.toStringAsFixed(1)} | ${product.reviewCount} reviews'),
+        Text('${liveRating.toStringAsFixed(1)} | $liveReviewCount reviews'),
       ],
     );
   }

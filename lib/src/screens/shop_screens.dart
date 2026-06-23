@@ -1346,6 +1346,8 @@ class _ComparisonProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final specs = product.specifications;
+    final app = context.watch<AppState>();
+    final liveRating = app.getProductLiveRating(product.productId);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -1361,7 +1363,7 @@ class _ComparisonProductCard extends StatelessWidget {
             const SizedBox(height: 6),
             PriceRow(product: product),
             const Divider(height: 22),
-            _CompareRow(label: 'Rating', value: product.rating.toStringAsFixed(1)),
+            _CompareRow(label: 'Rating', value: liveRating.toStringAsFixed(1)),
             _CompareRow(label: 'Color', value: product.color),
             _CompareRow(label: 'Material', value: product.material),
             _CompareRow(label: 'Size', value: product.size),

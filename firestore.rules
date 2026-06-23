@@ -90,6 +90,13 @@ service cloud.firestore {
       }
     }
 
+    // Match any document in any 'items' subcollection (for collection group queries)
+    match /{path=**}/items/{reviewId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
     match /notifications/{notificationId} {
       allow create, update, delete: if isAdmin();
       allow read: if isAdmin() || resource.data.userId == request.auth.uid || resource.data.userId == null;

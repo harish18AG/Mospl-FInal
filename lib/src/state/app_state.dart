@@ -44,7 +44,7 @@ class AppState extends ChangeNotifier {
   // ── Real-time Firestore stream subscriptions ────────────────────────────────
   StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _cartStream;
   StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _wishlistStream;
-  StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _productReviewStream;
+  StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _allReviewsStream;
   String? _realtimeSyncUid; // tracks which UID streams are active for
 
   String searchQuery = '';
@@ -103,7 +103,7 @@ class AppState extends ChangeNotifier {
       case 'Price: High to Low':
         list.sort((a, b) => b.price.compareTo(a.price));
       case 'Top Rated':
-        list.sort((a, b) => b.rating.compareTo(a.rating));
+        list.sort((a, b) => getProductLiveRating(b.productId).compareTo(getProductLiveRating(a.productId)));
       case 'Newest':
         list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       default:
@@ -210,6 +210,7 @@ class AppState extends ChangeNotifier {
       await loadAuthenticatedData(notify: false);
       _startRealtimeSync(firebaseUser?.uid);
     }
+    subscribeAllReviews();
     notifyListeners();
   }
 
@@ -1215,29 +1216,39 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Start listening to real-time Firestore updates for a product's reviews.
-  void subscribeProductReviews(String productId) {
+  void subscribeAllReviews() {
     if (!_firebaseReady) return;
-    _productReviewStream?.cancel();
-    _productReviewStream = firestore.FirebaseFirestore.instance
-        .collection('reviews')
-        .doc(productId)
-        .collection('items')
-        .orderBy('createdAt', descending: true)
+    _allReviewsStream?.cancel();
+    _allReviewsStream = firestore.FirebaseFirestore.instance
+        .collectionGroup('items')
         .snapshots()
         .listen((snapshot) {
-      reviews.removeWhere((r) => r.productId == productId);
-      reviews.addAll(
-        snapshot.docs.map((doc) => Review.fromMap(doc.data())),
-      );
+      reviews
+        ..clear()
+        ..addAll(snapshot.docs.map((doc) => Review.fromMap(doc.data())));
       notifyListeners();
-    });
+    }, onError: (_) {/* silently ignore */});
+  }
+
+  double getProductLiveRating(String productId) {
+    final prodReviews = reviews.where((r) => r.productId == productId).toList();
+    if (prodReviews.isEmpty) return 0;
+    final totalRating = prodReviews.fold<double>(0, (sum, r) => sum + r.rating);
+    return totalRating / prodReviews.length;
+  }
+
+  int getProductLiveReviewCount(String productId) {
+    return reviews.where((r) => r.productId == productId).length;
+  }
+
+  /// Start listening to real-time Firestore updates for a product's reviews.
+  void subscribeProductReviews(String productId) {
+    // No-op: handled globally by subscribeAllReviews
   }
 
   /// Stop listening to the current product's reviews stream.
   void unsubscribeProductReviews() {
-    _productReviewStream?.cancel();
-    _productReviewStream = null;
+    // No-op: handled globally by subscribeAllReviews
   }
 
   Future<void> markNotificationRead(String notificationId) async {

@@ -477,15 +477,19 @@ class AdminAnalyticsScreen extends StatelessWidget {
           ),
           const SectionHeader(title: 'Product Performance'),
           ...performance.take(8).map(
-                (product) => Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: SizedBox(width: 48, height: 48, child: ProductImage(url: product.thumbnail, fit: BoxFit.contain)),
-                    title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text('${product.reviewCount} reviews • ${product.rating.toStringAsFixed(1)} rating'),
-                    trailing: Text(product.priceLabel),
-                  ),
-                ),
+                (product) {
+                  final liveRating = state.getProductLiveRating(product.productId);
+                  final liveReviewCount = state.getProductLiveReviewCount(product.productId);
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: SizedBox(width: 48, height: 48, child: ProductImage(url: product.thumbnail, fit: BoxFit.contain)),
+                      title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('$liveReviewCount reviews • ${liveRating.toStringAsFixed(1)} rating'),
+                      trailing: Text(product.priceLabel),
+                    ),
+                  );
+                },
               ),
         ],
       ),

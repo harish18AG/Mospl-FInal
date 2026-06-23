@@ -667,7 +667,8 @@ class RatingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final products = context.watch<AppState>().allProducts.take(20).toList();
+    final app = context.watch<AppState>();
+    final products = app.allProducts.take(20).toList();
     return Scaffold(
       appBar: AppBar(title: const Text('Ratings')),
       body: ListView.separated(
@@ -676,11 +677,13 @@ class RatingsScreen extends StatelessWidget {
         separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final product = products[index];
+          final liveRating = app.getProductLiveRating(product.productId);
+          final liveReviewCount = app.getProductLiveReviewCount(product.productId);
           return Card(
             child: ListTile(
               leading: SizedBox(width: 54, height: 54, child: ProductImage(url: product.thumbnail, fit: BoxFit.contain)),
               title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text('${product.rating.toStringAsFixed(1)} stars • ${product.reviewCount} reviews'),
+              subtitle: Text('${liveRating.toStringAsFixed(1)} stars • $liveReviewCount reviews'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/product/${product.productId}'),
             ),
