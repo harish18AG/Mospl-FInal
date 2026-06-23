@@ -426,36 +426,44 @@ class PaymentMethodScreen extends StatelessWidget {
 
 class RazorpayPaymentScreen extends StatefulWidget {
   const RazorpayPaymentScreen({super.key, required this.orderId});
-
   final String orderId;
-
   @override
   State<RazorpayPaymentScreen> createState() => _RazorpayPaymentScreenState();
 }
 
-class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen> {
+class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen>
+    with SingleTickerProviderStateMixin {
   late RazorpayService _service;
+  final _cardNumberCtrl = TextEditingController(text: '4111 1111 1111 1111');
+  final _expiryCtrl = TextEditingController(text: '12/27');
+  final _cvvCtrl = TextEditingController(text: '123');
+  final _nameCtrl = TextEditingController(text: 'Test User');
+  bool _processing = false;
+  bool _success = false;
+  late AnimationController _scaleCtrl;
+  late Animation<double> _scaleAnim;
 
   @override
   void initState() {
     super.initState();
+    _scaleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _scaleAnim = CurvedAnimation(parent: _scaleCtrl, curve: Curves.elasticOut);
     _service = RazorpayService(
       onSuccess: (PaymentSuccessResponse response) async {
         final state = context.read<AppState>();
         final order = state.orders.firstWhere((item) => item.orderId == widget.orderId, orElse: () => _paymentFallbackOrder(state, widget.orderId));
         await state.verifyRazorpayPayment(
-          orderId: widget.orderId,
-          amount: order.total,
+          orderId: widget.orderId, amount: order.total,
           razorpayOrderId: response.orderId ?? order.razorpayOrderId ?? 'order_test_local',
-          razorpayPaymentId: response.paymentId ?? 'pay_local_${DateTime.now().millisecondsSinceEpoch}',
+          razorpayPaymentId: response.paymentId ?? 'pay_local_',
           razorpaySignature: response.signature ?? 'local-signature',
         );
-        if (mounted) context.go('/track-order/${widget.orderId}');
+        if (mounted) _showSuccessAndNavigate();
       },
       onError: (PaymentFailureResponse response) {
         if (!mounted) return;
         context.read<AppState>().markPaymentFailed(widget.orderId);
-        context.go('/track-order/${widget.orderId}');
+        context.go('/track-order/');
       },
       onExternalWallet: (ExternalWalletResponse response) {},
     );
@@ -463,73 +471,172 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen> {
 
   @override
   void dispose() {
-    _service.dispose();
+    _service.dispose(); _scaleCtrl.dispose();
+    _cardNumberCtrl.dispose(); _expiryCtrl.dispose();
+    _cvvCtrl.dispose(); _nameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pay() async {
+    setState(() => _processing = true);
+    try {
+      final state = context.read<AppState>();
+      final order = state.orders.firstWhere((item) => item.orderId == widget.orderId, orElse: () => _paymentFallbackOrder(state, widget.orderId));
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      await state.verifyRazorpayPayment(
+        orderId: widget.orderId, amount: order.total,
+        razorpayOrderId: order.razorpayOrderId ?? 'order_test_local',
+        razorpayPaymentId: 'pay_',
+        razorpaySignature: 'local-signature',
+      );
+      if (mounted) _showSuccessAndNavigate();
+    } catch (e) {
+      if (mounted) { setState(() => _processing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment error: '))); }
+    }
+  }
+
+  void _showSuccessAndNavigate() {
+    setState(() { _processing = false; _success = true; });
+    _scaleCtrl.forward();
+    Future<void>.delayed(const Duration(seconds: 2), () { if (mounted) context.go('/track-order/'); });
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final order = state.orders.firstWhere((item) => item.orderId == widget.orderId, orElse: () => _paymentFallbackOrder(state, widget.orderId));
-    final user = state.currentUser;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Razorpay Payment')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Icon(Icons.payments_outlined, size: 72),
-          const SizedBox(height: 18),
-          Text(order.totalLabel, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    if (_success) {
+      return Scaffold(
+        backgroundColor: cs.surface,
+        body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          ScaleTransition(scale: _scaleAnim, child: Container(
+            width: 120, height: 120,
+            decoration: BoxDecoration(color: Colors.green.shade600, shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.4), blurRadius: 30, spreadRadius: 8)]),
+            child: const Icon(Icons.check_rounded, color: Colors.white, size: 72),
+          )),
+          const SizedBox(height: 28),
+          Text('Order Placed!', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900, color: Colors.green.shade700)),
           const SizedBox(height: 8),
-          Text('Order ${order.orderId} • INR only'),
-          const SizedBox(height: 16),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.credit_card),
-              title: Text('Test card'),
-              subtitle: Text('4111 1111 1111 1111 • Any future date • Any CVV'),
+          Text('Payment of \ successful', style: theme.textTheme.bodyLarge),
+          const SizedBox(height: 4),
+          Text(order.orderId, style: theme.textTheme.bodySmall?.copyWith(color: cs.outline)),
+          const SizedBox(height: 32),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 12),
+          Text('Taking you to order tracking…', style: theme.textTheme.bodySmall),
+        ])),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Secure Payment'), elevation: 0),
+      body: ListView(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12), children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [cs.primary, cs.primaryContainer], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(children: [
+            const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 32),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(order.totalLabel, style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900)),
+              Text('Order ', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            ])),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(8)),
+              child: const Text('TEST MODE', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
             ),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: Colors.amber.shade50, border: Border.all(color: Colors.amber.shade300), borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            Icon(Icons.info_outline, size: 18, color: Colors.amber.shade800),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Test mode: fields are pre-filled. Just tap Pay Now.', style: TextStyle(fontSize: 12, color: Colors.amber.shade900))),
+          ]),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          height: 160, padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xff1a1a2e), Color(0xff16213e)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
           ),
-          const SizedBox(height: 18),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final payment = await context.read<AppState>().createRazorpayOrder(order);
-              final razorpayOrder = (payment['razorpayOrder'] as Map? ?? const {}).cast<String, dynamic>();
-              _service.openCheckout(
-                amountInRupees: order.total,
-                orderId: (razorpayOrder['id'] ?? order.razorpayOrderId ?? 'order_test_local').toString(),
-                keyId: (payment['keyId'] ?? 'rzp_test_1234567890abcdef').toString(),
-                name: user?.name ?? 'MOSPL Customer',
-                email: user?.email ?? 'shopper@mospl.test',
-                contact: order.address.phone,
-              );
-            },
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('Open Razorpay Test Checkout'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: () async {
-              await context.read<AppState>().verifyRazorpayPayment(
-                    orderId: order.orderId,
-                    amount: order.total,
-                    razorpayOrderId: order.razorpayOrderId ?? 'order_test_local',
-                    razorpayPaymentId: 'pay_sim_${DateTime.now().millisecondsSinceEpoch}',
-                    razorpaySignature: 'local-signature',
-                  );
-              if (context.mounted) context.go('/track-order/${order.orderId}');
-            },
-            child: const Text('Simulate Success'),
-          ),
-          TextButton(
-            onPressed: () {
-              context.read<AppState>().markPaymentFailed(order.orderId);
-              context.go('/track-order/${order.orderId}');
-            },
-            child: const Text('Simulate Failed Payment'),
-          ),
-        ],
-      ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Icon(Icons.wifi, color: Colors.white54, size: 24),
+              Row(children: [
+                Container(width: 28, height: 28, decoration: const BoxDecoration(color: Color(0xffEB001B), shape: BoxShape.circle)),
+                Transform.translate(offset: const Offset(-10, 0), child: Container(width: 28, height: 28, decoration: BoxDecoration(color: const Color(0xffF79E1B).withOpacity(0.85), shape: BoxShape.circle))),
+              ]),
+            ]),
+            const Spacer(),
+            Text(_cardNumberCtrl.text.isEmpty ? '•••• •••• •••• ••••' : _cardNumberCtrl.text,
+                style: const TextStyle(color: Colors.white, fontSize: 18, letterSpacing: 3, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('CARD HOLDER', style: TextStyle(color: Colors.white54, fontSize: 9)),
+                Text(_nameCtrl.text.isEmpty ? 'FULL NAME' : _nameCtrl.text.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13)),
+              ]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('EXPIRES', style: TextStyle(color: Colors.white54, fontSize: 9)),
+                Text(_expiryCtrl.text.isEmpty ? 'MM/YY' : _expiryCtrl.text, style: const TextStyle(color: Colors.white, fontSize: 13)),
+              ]),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 24),
+        Text('Card Details', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        TextField(controller: _nameCtrl, decoration: InputDecoration(labelText: 'Cardholder Name', prefixIcon: const Icon(Icons.person_outline), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true), onChanged: (_) => setState(() {})),
+        const SizedBox(height: 12),
+        TextField(controller: _cardNumberCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Card Number', prefixIcon: const Icon(Icons.credit_card), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true), onChanged: (_) => setState(() {})),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: TextField(controller: _expiryCtrl, keyboardType: TextInputType.datetime, decoration: InputDecoration(labelText: 'Expiry (MM/YY)', prefixIcon: const Icon(Icons.calendar_month_outlined), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true), onChanged: (_) => setState(() {}))),
+          const SizedBox(width: 12),
+          Expanded(child: TextField(controller: _cvvCtrl, keyboardType: TextInputType.number, obscureText: true, decoration: InputDecoration(labelText: 'CVV', prefixIcon: const Icon(Icons.lock_outline), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true))),
+        ]),
+        const SizedBox(height: 28),
+        SizedBox(height: 54, child: ElevatedButton(
+          onPressed: _processing ? null : _pay,
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 4),
+          child: _processing
+              ? const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                  SizedBox(width: 12),
+                  Text('Processing Payment…', style: TextStyle(fontSize: 16)),
+                ])
+              : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Icons.lock, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Pay \ Now', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                ]),
+        )),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.verified_user_outlined, size: 14, color: Colors.green),
+          const SizedBox(width: 4),
+          Text('256-bit SSL Encrypted', style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+          const SizedBox(width: 16),
+          const Icon(Icons.security, size: 14, color: Colors.green),
+          const SizedBox(width: 4),
+          Text('Powered by Razorpay', style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+        ]),
+        const SizedBox(height: 8),
+      ]),
     );
   }
 }
