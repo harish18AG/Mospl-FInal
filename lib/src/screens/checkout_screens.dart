@@ -748,7 +748,27 @@ class TrackOrderScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             ...List.generate(steps.length, (index) {
-              final done = index < 2;
+              final isPaymentPaid = order.paymentStatus == 'Paid';
+              final isPaymentFailed = order.paymentStatus == 'Failed';
+              
+              final statusOrder = ['Confirmed', 'Packed', 'Shipped', 'Delivered'];
+              final currentStatusIndex = statusOrder.indexOf(order.status);
+              
+              bool done = false;
+              bool failed = false;
+              
+              if (index == 0) {
+                if (isPaymentFailed) {
+                  failed = true;
+                } else {
+                  done = true;
+                }
+              } else {
+                if (isPaymentPaid && currentStatusIndex >= index) {
+                  done = true;
+                }
+              }
+
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -756,11 +776,23 @@ class TrackOrderScreen extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 16,
-                        backgroundColor: done ? const Color(0xff12833b) : Colors.grey.shade300,
-                        child: Icon(done ? Icons.check : Icons.circle, size: 14, color: done ? Colors.white : Colors.grey),
+                        backgroundColor: failed
+                            ? const Color(0xffd32f2f)
+                            : (done ? const Color(0xff12833b) : Colors.grey.shade300),
+                        child: Icon(
+                          failed
+                              ? Icons.close
+                              : (done ? Icons.check : Icons.circle),
+                          size: 14,
+                          color: (failed || done) ? Colors.white : Colors.grey,
+                        ),
                       ),
                       if (index != steps.length - 1)
-                        Container(width: 2, height: 58, color: done ? const Color(0xff12833b) : Colors.grey.shade300),
+                        Container(
+                          width: 2,
+                          height: 58,
+                          color: done ? const Color(0xff12833b) : Colors.grey.shade300,
+                        ),
                     ],
                   ),
                   const SizedBox(width: 14),
@@ -772,7 +804,9 @@ class TrackOrderScreen extends StatelessWidget {
                         children: [
                           Text(steps[index].$1, style: const TextStyle(fontWeight: FontWeight.w900)),
                           const SizedBox(height: 4),
-                          Text('${steps[index].$2} - $orderId'),
+                          Text(failed
+                              ? 'Payment failed for this order - $orderId'
+                              : '${steps[index].$2} - $orderId'),
                         ],
                       ),
                     ),
