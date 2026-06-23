@@ -198,7 +198,12 @@ class AppState extends ChangeNotifier {
     final firebaseUser = _firebaseReady ? firebase_auth.FirebaseAuth.instance.currentUser : null;
     final email = firebaseUser?.email ?? prefs.getString('userEmail');
     final name = firebaseUser?.displayName ?? prefs.getString('userName');
-    final role = prefs.getString('userRole') ?? 'customer';
+    // Prefer persisted role, but re-fetch from Firestore for firebase users to pick up role changes
+    String role = prefs.getString('userRole') ?? 'customer';
+    if (firebaseUser != null && _firebaseReady) {
+      final freshRole = await _fetchFirestoreRole(firebaseUser.uid);
+      if (freshRole != 'customer' || role == 'customer') role = freshRole;
+    }
     if (email != null && name != null && rememberMe) {
       currentUser = AppUser(
         uid: firebaseUser?.uid ?? prefs.getString('uid') ?? 'local-user',
@@ -212,6 +217,58 @@ class AppState extends ChangeNotifier {
     }
     subscribeAllReviews();
     notifyListeners();
+  }
+
+  /// Fetches the user's role from the Firestore `users` collection.
+  /// Returns 'admin' if the document has role=='admin', otherwise 'customer'.
+  Future<String> _fetchFirestoreRole(String uid) async {
+    if (!_firebaseReady) return 'customer';
+    try {
+      final doc = await firestore.FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      if (doc.exists) {
+        final data = doc.data();
+        final r = data?['role']?.toString() ?? 'customer';
+        return r;
+      }
+    } catch (_) {}
+    return 'customer';
+  }
+
+  /// Saves (or upserts) a user document in Firestore `users` collection.
+  /// If [isNew] is true (sign-up), writes all fields including role.
+  /// If [isNew] is false (sign-in), only updates name/email/lastSeen
+  /// so we never accidentally overwrite an existing admin role.
+  Future<void> _saveUserToFirestore(AppUser user, {required bool isNew}) async {
+    if (!_firebaseReady) return;
+    try {
+      final now = DateTime.now().toIso8601String();
+      final ref = firestore.FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      if (isNew) {
+        await ref.set({
+          'uid': user.uid,
+          'email': user.email,
+          'name': user.name,
+          'role': user.role,
+          'createdAt': now,
+          'updatedAt': now,
+          'lastSeen': now,
+        }, firestore.SetOptions(merge: true));
+      } else {
+        // Only update mutable fields, preserve role set by admin
+        await ref.set({
+          'uid': user.uid,
+          'email': user.email,
+          'name': user.name,
+          'updatedAt': now,
+          'lastSeen': now,
+        }, firestore.SetOptions(merge: true));
+      }
+    } catch (_) {}
   }
 
   Future<void> completeOnboarding() async {
@@ -238,12 +295,16 @@ class AppState extends ChangeNotifier {
         final credential = await firebase_auth.FirebaseAuth.instance
             .signInWithEmailAndPassword(email: email.trim(), password: password);
         final user = credential.user;
+        final uid = user?.uid ?? 'firebase-user';
+        final firestoreRole = await _fetchFirestoreRole(uid);
         currentUser = AppUser(
-          uid: user?.uid ?? 'firebase-user',
+          uid: uid,
           email: email.trim(),
           name: user?.displayName ?? email.split('@').first,
-          role: 'customer',
+          role: firestoreRole,
         );
+        // Upsert user doc so admin sees all users who have signed in
+        _saveUserToFirestore(currentUser!, isNew: false).ignore();
       } else {
         currentUser = AppUser(
           uid: 'local-${email.hashCode.abs()}',
@@ -290,12 +351,15 @@ class AppState extends ChangeNotifier {
         final credential = await firebase_auth.FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email.trim(), password: password);
         await credential.user?.updateDisplayName(name.trim());
+        final uid = credential.user?.uid ?? 'firebase-user';
         currentUser = AppUser(
-          uid: credential.user?.uid ?? 'firebase-user',
+          uid: uid,
           email: email.trim(),
           name: name.trim(),
           role: 'customer',
         );
+        // Save new user profile to Firestore so admin can see them
+        _saveUserToFirestore(currentUser!, isNew: true).ignore();
       } else {
         currentUser = AppUser(
           uid: 'local-${email.hashCode.abs()}',
