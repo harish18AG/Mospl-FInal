@@ -1182,28 +1182,26 @@ class AppState extends ChangeNotifier {
     final docId = _uuid.v4();
     final now = DateTime.now();
 
-    // ── 1. Write directly to Firestore so every user sees it immediately ────
-    if (_firebaseReady) {
-      try {
-        await firestore.FirebaseFirestore.instance
-            .collection('reviews')
-            .doc(productId)
-            .collection('items')
-            .doc(docId)
-            .set({
-          'id': docId,
-          'productId': productId,
-          'userName': userName,
-          'rating': rating,
-          'comment': comment,
-          'createdAt': firestore.Timestamp.fromDate(now),
-        });
-      } catch (_) {
-        // Firestore write failed – still try the backend
-      }
+    // ── 1. Write directly to Firestore ──────────────────────────────────────
+    if (!_firebaseReady) {
+      throw StateError('Firebase is not initialized. Please restart the app and try again.');
     }
 
-    // ── 2. Optimistically add to local list ─────────────────────────────────
+    await firestore.FirebaseFirestore.instance
+        .collection('reviews')
+        .doc(productId)
+        .collection('items')
+        .doc(docId)
+        .set({
+      'id': docId,
+      'productId': productId,
+      'userName': userName,
+      'rating': rating,
+      'comment': comment,
+      'createdAt': firestore.Timestamp.fromDate(now),
+    });
+
+    // ── 2. Optimistically add to local list (real-time stream will update) ──
     final localReview = Review(
       id: docId,
       productId: productId,
@@ -1215,26 +1213,6 @@ class AppState extends ChangeNotifier {
     reviews.removeWhere((item) => item.id == docId);
     reviews.insert(0, localReview);
     notifyListeners();
-
-    // ── 3. Also persist via backend API (background, non-blocking) ──────────
-    if (backendToken == null) await _syncBackendFirebaseSession();
-    if (backendToken != null) {
-      try {
-        final apiReview = await _apiClient.createReview(
-          productId: productId,
-          rating: rating,
-          comment: comment,
-          token: backendToken!,
-        );
-        // Replace local placeholder with API result
-        reviews.removeWhere((item) => item.id == docId);
-        reviews.removeWhere((item) => item.id == apiReview.id);
-        reviews.insert(0, apiReview);
-        notifyListeners();
-      } catch (_) {
-        // Backend unavailable – Firestore version is already visible
-      }
-    }
   }
 
   /// Start listening to real-time Firestore updates for a product's reviews.
