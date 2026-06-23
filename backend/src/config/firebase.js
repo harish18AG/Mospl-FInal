@@ -1,4 +1,6 @@
 const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 
 let app = null;
 let db = null;
@@ -20,20 +22,20 @@ try {
   const credentials = loadCredentials();
   if (credentials) {
     app = admin.initializeApp({
-      credential: admin.credential.cert(credentials),
+      credential: admin.cert(credentials),
       projectId: credentials.project_id || process.env.FIREBASE_PROJECT_ID,
     });
     configured = true;
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     app = admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
+      credential: admin.applicationDefault(),
       projectId: process.env.FIREBASE_PROJECT_ID,
     });
     configured = true;
   }
   if (configured) {
-    db = admin.firestore(app);
-    auth = admin.auth(app);
+    db = getFirestore(app);
+    auth = getAuth(app);
   }
 } catch (error) {
   console.warn('Firebase Admin not configured. Using in-memory development store.', error.message);

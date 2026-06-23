@@ -77,14 +77,7 @@ class AdminDashboardScreen extends StatelessWidget {
             const Text('No orders yet. Place a test order from the customer app.')
           else
             ...state.orders.take(5).map(
-                  (order) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(order.orderId),
-                      subtitle: Text('${order.status} • ${order.paymentStatus}'),
-                      trailing: Text(order.totalLabel, style: const TextStyle(fontWeight: FontWeight.w900)),
-                    ),
-                  ),
+                  (order) => _AdminOrderStatusCard(order: order),
                 ),
         ],
       ),
@@ -336,29 +329,187 @@ class AdminOrdersScreen extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               itemCount: orders.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final order = orders[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(order.orderId),
-                    subtitle: Text('${order.items.length} items • ${order.address.city} • ${order.paymentStatus}'),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (status) => context.read<AppState>().updateOrderStatus(
-                            orderId: order.orderId,
-                            status: status,
-                            paymentStatus: order.paymentStatus,
-                          ),
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'Packed', child: Text('Mark Packed')),
-                        PopupMenuItem(value: 'Shipped', child: Text('Mark Shipped')),
-                        PopupMenuItem(value: 'Delivered', child: Text('Mark Delivered')),
-                      ],
-                      child: Text(order.totalLabel, style: const TextStyle(fontWeight: FontWeight.w900)),
+              itemBuilder: (context, index) => _AdminOrderStatusCard(order: orders[index]),
+            ),
+    );
+  }
+}
+
+class _AdminOrderStatusCard extends StatelessWidget {
+  const _AdminOrderStatusCard({required this.order});
+
+  final AppOrder order;
+
+  static const _statusSteps = ['Confirmed', 'Packed', 'Shipped', 'Delivered'];
+
+  Color _stepColor(BuildContext context, int stepIndex) {
+    final currentIndex = _statusSteps.indexOf(order.status);
+    if (stepIndex <= currentIndex) return const Color(0xff12833b);
+    return Colors.grey.shade300;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentIndex = _statusSteps.indexOf(order.status);
+    final isPaid = order.paymentStatus == 'Paid';
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(order.orderId, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${order.items.length} item${order.items.length == 1 ? '' : 's'} • ${order.address.city} • ${order.paymentMethod}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(order.totalLabel, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isPaid ? const Color(0xffe8f5e9) : const Color(0xfffff3e0),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        order.paymentStatus,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isPaid ? const Color(0xff12833b) : const Color(0xffe65100),
+                        ),
+                      ),
                     ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Status stepper
+            Row(
+              children: List.generate(_statusSteps.length, (index) {
+                final isActive = index <= currentIndex;
+                final isLast = index == _statusSteps.length - 1;
+                return Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundColor: _stepColor(context, index),
+                              child: Icon(
+                                isActive ? Icons.check : Icons.circle,
+                                size: 12,
+                                color: isActive ? Colors.white : Colors.grey.shade400,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _statusSteps[index],
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                                color: isActive ? const Color(0xff12833b) : Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isLast)
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            margin: const EdgeInsets.only(bottom: 18),
+                            color: index < currentIndex ? const Color(0xff12833b) : Colors.grey.shade300,
+                          ),
+                        ),
+                    ],
                   ),
                 );
-              },
+              }),
             ),
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            // Action buttons – only show next possible statuses
+            Wrap(
+              spacing: 8,
+              children: [
+                if (currentIndex < 1)
+                  _actionChip(
+                    context,
+                    label: '✓ Mark Packed',
+                    color: const Color(0xff1565c0),
+                    onTap: () => _updateStatus(context, 'Packed'),
+                  ),
+                if (currentIndex < 2)
+                  _actionChip(
+                    context,
+                    label: '✓ Mark Shipped',
+                    color: const Color(0xff6a1b9a),
+                    onTap: () => _updateStatus(context, 'Shipped'),
+                  ),
+                if (currentIndex < 3)
+                  _actionChip(
+                    context,
+                    label: '✓ Mark Delivered',
+                    color: const Color(0xff12833b),
+                    onTap: () => _updateStatus(context, 'Delivered'),
+                  ),
+                if (currentIndex >= 3)
+                  const Chip(
+                    label: Text('Order Delivered', style: TextStyle(color: Colors.white, fontSize: 12)),
+                    backgroundColor: Color(0xff12833b),
+                    padding: EdgeInsets.zero,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionChip(BuildContext context, {required String label, required Color color, required VoidCallback onTap}) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+      backgroundColor: color,
+      onPressed: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+    );
+  }
+
+  void _updateStatus(BuildContext context, String status) {
+    context.read<AppState>().updateOrderStatus(
+          orderId: order.orderId,
+          status: status,
+          paymentStatus: order.paymentStatus,
+        );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Order ${order.orderId} marked as $status'),
+        backgroundColor: const Color(0xff12833b),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 }

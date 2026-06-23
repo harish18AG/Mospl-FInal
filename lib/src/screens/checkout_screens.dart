@@ -463,7 +463,7 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen>
       onError: (PaymentFailureResponse response) {
         if (!mounted) return;
         context.read<AppState>().markPaymentFailed(widget.orderId);
-        context.go('/track-order/');
+        context.go('/track-order/${widget.orderId}');
       },
       onExternalWallet: (ExternalWalletResponse response) {},
     );
@@ -498,7 +498,7 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen>
   void _showSuccessAndNavigate() {
     setState(() { _processing = false; _success = true; });
     _scaleCtrl.forward();
-    Future<void>.delayed(const Duration(seconds: 2), () { if (mounted) context.go('/track-order/'); });
+    Future<void>.delayed(const Duration(seconds: 2), () { if (mounted) context.go('/track-order/${widget.orderId}'); });
   }
 
   @override

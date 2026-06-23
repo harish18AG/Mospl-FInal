@@ -184,9 +184,40 @@ class AppState extends ChangeNotifier {
         coupons = buildCoupons();
       }
     } finally {
+      // Merge any admin-saved Firestore products on top of the catalog
+      await _mergeFirestoreProducts();
       catalogLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Loads products saved by admin from Firestore `products` collection
+  /// and merges them into the local catalog. Firestore products override
+  /// the local fallback entry for the same productId (stock updates etc.),
+  /// and newly admin-added products that don't exist locally are appended.
+  Future<void> _mergeFirestoreProducts() async {
+    if (!_firebaseReady) return;
+    try {
+      final snapshot = await firestore.FirebaseFirestore.instance
+          .collection('products')
+          .get();
+      for (final doc in snapshot.docs) {
+        try {
+          final product = Product.fromMap({...doc.data(), 'productId': doc.id});
+          final index = _allProducts.indexWhere((p) => p.productId == product.productId);
+          if (index >= 0) {
+            // Override local copy with Firestore version (e.g. updated stock)
+            _allProducts[index] = product;
+          } else {
+            // New product added by admin – prepend so it's visible
+            _allProducts.insert(0, product);
+          }
+        } catch (_) {}
+      }
+      if (snapshot.docs.isNotEmpty) {
+        categories = buildCategories(_allProducts);
+      }
+    } catch (_) {}
   }
 
   Future<void> restoreSession() async {
@@ -1247,10 +1278,32 @@ class AppState extends ChangeNotifier {
         createdAt: DateTime.now(),
       ),
     );
+    // ── Decrement stock for each ordered item ────────────────────────────────
+    _decrementStockForOrder(order);
     cart.clear();
     _pushNotification('Order placed', '${order.orderId} is confirmed.');
     notifyListeners();
     return order;
+  }
+
+  /// Reduces stock locally and in Firestore for every product in the order.
+  void _decrementStockForOrder(AppOrder order) {
+    final db = _firebaseReady ? firestore.FirebaseFirestore.instance : null;
+    for (final line in order.items) {
+      final productId = line.product.productId;
+      final qty = line.quantity;
+      // Update local in-memory list
+      final index = _allProducts.indexWhere((p) => p.productId == productId);
+      if (index >= 0) {
+        final newStock = (_allProducts[index].stock - qty).clamp(0, 99999);
+        _allProducts[index] = _allProducts[index].copyWith(stock: newStock, updatedAt: DateTime.now());
+        // Persist updated stock to Firestore
+        db?.collection('products').doc(productId).set(
+          {'stock': newStock, 'updatedAt': DateTime.now().toIso8601String()},
+          firestore.SetOptions(merge: true),
+        ).ignore();
+      }
+    }
   }
 
   Future<Map<String, dynamic>> createRazorpayOrder(AppOrder order) async {
@@ -1831,6 +1884,7 @@ class AppState extends ChangeNotifier {
   Future<void> upsertProduct(Product product) async {
     final index = _allProducts.indexWhere((item) => item.productId == product.productId);
     var productToStore = product;
+    // Try backend API first
     if (currentUser?.isAdmin == true && backendToken != null) {
       try {
         productToStore = index >= 0
@@ -1838,6 +1892,19 @@ class AppState extends ChangeNotifier {
             : await _apiClient.createProduct(product, backendToken!);
       } catch (error) {
         catalogError = error.toString();
+      }
+    }
+    // Always persist to Firestore so the product survives page reload
+    if (_firebaseReady) {
+      try {
+        final payload = productToStore.toMap()
+          ..['updatedAt'] = DateTime.now().toIso8601String();
+        await firestore.FirebaseFirestore.instance
+            .collection('products')
+            .doc(productToStore.productId)
+            .set(payload, firestore.SetOptions(merge: true));
+      } catch (error) {
+        catalogError = 'Product saved locally but Firestore write failed: $error';
       }
     }
     if (index >= 0) {
@@ -1856,6 +1923,14 @@ class AppState extends ChangeNotifier {
       } catch (error) {
         catalogError = error.toString();
       }
+    }
+    // Also remove from Firestore so it doesn't reappear on next load
+    if (_firebaseReady) {
+      firestore.FirebaseFirestore.instance
+          .collection('products')
+          .doc(productId)
+          .delete()
+          .ignore();
     }
     _allProducts.removeWhere((product) => product.productId == productId);
     categories = buildCategories(_allProducts);
