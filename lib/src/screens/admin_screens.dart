@@ -76,7 +76,6 @@ class AdminDashboardScreen extends StatelessWidget {
           _adminLink(context, 'Analytics', Icons.analytics_outlined, '/admin/analytics'),
           _adminLink(context, 'Revenue Statistics', Icons.currency_rupee, '/admin/revenue'),
           _adminLink(context, 'Sales Charts', Icons.show_chart, '/admin/sales-charts'),
-          _adminLink(context, 'Settings', Icons.settings_outlined, '/admin/settings'),
           const SectionHeader(title: 'Recent Orders'),
           if (state.orders.isEmpty)
             const Text('No orders yet. Place a test order from the customer app.')

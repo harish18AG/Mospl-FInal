@@ -208,7 +208,6 @@ class AppRouter {
       GoRoute(path: '/admin/analytics', builder: (context, state) => const AdminGate(child: AdminAnalyticsScreen(title: 'Admin Analytics'))),
       GoRoute(path: '/admin/revenue', builder: (context, state) => const AdminGate(child: AdminAnalyticsScreen(title: 'Revenue Statistics'))),
       GoRoute(path: '/admin/sales-charts', builder: (context, state) => const AdminGate(child: AdminAnalyticsScreen(title: 'Sales Charts'))),
-      GoRoute(path: '/admin/settings', builder: (context, state) => const AdminGate(child: AdminSimpleScreen(title: 'Admin Settings', icon: Icons.settings_outlined))),
     ],
   );
 }
