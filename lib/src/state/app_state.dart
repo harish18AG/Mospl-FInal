@@ -654,6 +654,7 @@ class AppState extends ChangeNotifier {
     if (backendToken == null) {
       await loadAddresses(notify: false);
       await loadOrders(notify: false);
+      await loadSupportTickets(notify: false);
       if (notify) notifyListeners();
       return;
     }
@@ -971,7 +972,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadSupportTickets({bool notify = true}) async {
-    if (backendToken == null) return;
+    if (backendToken == null) {
+      await _loadFirestoreSupportTickets();
+      if (notify) notifyListeners();
+      return;
+    }
     try {
       final saved = await _apiClient.fetchSupportTickets(backendToken!);
       supportTickets
@@ -1173,15 +1178,66 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> createSupportTicket({required String subject, required String message}) async {
-    if (backendToken == null) await _syncBackendFirebaseSession();
-    if (backendToken == null) throw StateError('Please sign in again before creating a support ticket.');
-    final ticket = await _apiClient.createSupportTicket(
-      subject: subject,
-      message: message,
-      token: backendToken!,
-    );
-    supportTickets.insert(0, ticket);
-    notifyListeners();
+    if (_firebaseUid != null) {
+      final uid = _firebaseUid!;
+      final docId = _uuid.v4();
+      final now = DateTime.now();
+      final ticket = SupportTicket(
+        ticketId: docId,
+        subject: subject,
+        message: message,
+        status: 'open',
+        createdAt: now,
+      );
+
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('support_tickets')
+            .doc(docId)
+            .set({
+              'ticketId': docId,
+              'userId': uid,
+              'subject': subject,
+              'message': message,
+              'status': 'open',
+              'createdAt': now.toIso8601String(),
+            });
+        
+        supportTickets.insert(0, ticket);
+        notifyListeners();
+
+        // Sync with backend API in the background if token is available
+        if (backendToken != null) {
+          _apiClient.createSupportTicket(
+            subject: subject,
+            message: message,
+            token: backendToken!,
+          ).ignore();
+        }
+        return;
+      } catch (error) {
+        catalogError = error.toString();
+      }
+    }
+
+    if (backendToken == null) {
+      _syncBackendFirebaseSession().ignore();
+    }
+    if (backendToken == null) {
+      throw StateError('Please sign in again before creating a support ticket.');
+    }
+    try {
+      final ticket = await _apiClient.createSupportTicket(
+        subject: subject,
+        message: message,
+        token: backendToken!,
+      );
+      supportTickets.insert(0, ticket);
+      notifyListeners();
+    } catch (error) {
+      catalogError = error.toString();
+      rethrow;
+    }
   }
 
   Future<void> createReturnRequest({required String orderId, required String reason}) async {
@@ -1260,6 +1316,29 @@ class AppState extends ChangeNotifier {
       catalogError = null;
     } catch (error) {
       catalogError = 'Order sync failed. Check Firestore rules for orders. $error';
+    }
+  }
+
+  Future<void> _loadFirestoreSupportTickets() async {
+    final uid = _firebaseUid;
+    if (uid == null) return;
+    try {
+      final snapshot = await firestore.FirebaseFirestore.instance
+          .collection('support_tickets')
+          .where('userId', isEqualTo: uid)
+          .get();
+      final saved = snapshot.docs
+          .map((doc) => SupportTicket.fromMap({
+                ...doc.data(),
+                'ticketId': doc.id,
+              }))
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      supportTickets
+        ..clear()
+        ..addAll(saved);
+    } catch (error) {
+      catalogError = 'Support ticket sync failed. $error';
     }
   }
 
