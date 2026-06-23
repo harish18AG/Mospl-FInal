@@ -24,7 +24,8 @@ class _WebsiteProduct {
     required this.reviewCount,
     required this.galleryImages,
     required this.specifications,
-  });
+  }) : returnPolicy = '7-Day Easy Return | No Questions Asked',
+       warranty = '6-Month Brand Warranty';
 
   final int sourceProductId;
   final String name;
@@ -36,9 +37,12 @@ class _WebsiteProduct {
   final int reviewCount;
   final List<String> galleryImages;
   final Map<String, String> specifications;
+  final String returnPolicy;
+  final String warranty;
 }
 
 final List<_WebsiteProduct> _websiteProducts = [
+  // ── Men Wallets (p1–p5, p12, p13) ──────────────────────────────────────────
   _WebsiteProduct(
     sourceProductId: 1,
     name: "MOSPL Men's Genuine Leather Wallet (Black)",
@@ -56,6 +60,8 @@ final List<_WebsiteProduct> _websiteProducts = [
       'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '2',
+      'Closure Type': 'Flap',
+      'Stitching': 'Double Stitch',
     },
   ),
   _WebsiteProduct(
@@ -75,6 +81,8 @@ final List<_WebsiteProduct> _websiteProducts = [
       'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '2',
+      'Closure Type': 'Flap',
+      'Stitching': 'Double Stitch',
     },
   ),
   _WebsiteProduct(
@@ -94,6 +102,8 @@ final List<_WebsiteProduct> _websiteProducts = [
       'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '2',
+      'Closure Type': 'Flap',
+      'Stitching': 'Double Stitch',
     },
   ),
   _WebsiteProduct(
@@ -113,6 +123,8 @@ final List<_WebsiteProduct> _websiteProducts = [
       'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '2',
+      'Closure Type': 'Flap',
+      'Stitching': 'Double Stitch',
     },
   ),
   _WebsiteProduct(
@@ -132,8 +144,14 @@ final List<_WebsiteProduct> _websiteProducts = [
       'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '2',
+      'Closure Type': 'Flap',
+      'Stitching': 'Double Stitch',
     },
   ),
+
+  // ── Passport Holders (p6, p7) ───────────────────────────────────────────────
+  // From image analysis: p6 is a slim upright passport holder with zipper top.
+  // p7 interior shows: passport slot, 4 card slots, 2 currency pockets, ID window.
   _WebsiteProduct(
     sourceProductId: 6,
     name: 'MOSPL Genuine Leather Passport Holder (Black)',
@@ -144,8 +162,18 @@ final List<_WebsiteProduct> _websiteProducts = [
     color: 'Black',
     reviewCount: 0,
     galleryImages: _gallery(6, ['1140001.JPG', '9990583.JPG', '7696777.JPG', '3321365.JPG', '3680334.JPG']),
-    specifications: const {},
+    specifications: const {
+      'Height': '145 mm',
+      'Width': '105 mm',
+      'Card Slots': '4',
+      'No. of Pocket': '3',
+      'Pattern': 'Plain',
+      'No. of Compartments': '3',
+      'Closure Type': 'Zipper',
+      'Passport Slots': '1',
+    },
   ),
+  // p7 interior: MOSPL logo embossed, 6 card slots, currency pocket, ID window, passport slot.
   _WebsiteProduct(
     sourceProductId: 7,
     name: 'MOSPL Genuine Leather Passport Holder (Black)',
@@ -156,8 +184,20 @@ final List<_WebsiteProduct> _websiteProducts = [
     color: 'Black',
     reviewCount: 0,
     galleryImages: _gallery(7, ['3345797.JPG', '7005130.JPG', '621840.JPG', '3975609.JPG', '8493715.JPG']),
-    specifications: const {},
+    specifications: const {
+      'Height': '145 mm',
+      'Width': '105 mm',
+      'Card Slots': '6',
+      'No. of Pocket': '4',
+      'Pattern': 'Brand Embossed',
+      'No. of Compartments': '4',
+      'Closure Type': 'Button Snap',
+      'Passport Slots': '1',
+    },
   ),
+
+  // ── Men Belts (p8–p11) ──────────────────────────────────────────────────────
+  // p8: Hand-woven / braided leather belt with pin buckle.
   _WebsiteProduct(
     sourceProductId: 8,
     name: "MOSPL Men's Genuine Leather Belt - Hand Woven (Black)",
@@ -168,8 +208,17 @@ final List<_WebsiteProduct> _websiteProducts = [
     color: 'Black',
     reviewCount: 0,
     galleryImages: _gallery(8, ['652892.JPG', '7926995.JPG', '8224742.JPG', '3770165.JPG', '746286.JPG']),
-    specifications: const {},
+    specifications: const {
+      'Length': '120 cm (Adjustable)',
+      'Width': '35 mm',
+      'Pattern': 'Hand Woven / Braided',
+      'Buckle Type': 'Pin Buckle',
+      'Buckle Material': 'Metal Alloy',
+      'Closure Type': 'Pin Buckle',
+      'Fit Type': 'Adjustable',
+    },
   ),
+  // p9: Plain leather belt with double stitch edge and rectangular pin buckle.
   _WebsiteProduct(
     sourceProductId: 9,
     name: "MOSPL Men's Genuine Leather Belt (Black)",
@@ -180,8 +229,17 @@ final List<_WebsiteProduct> _websiteProducts = [
     color: 'Black',
     reviewCount: 0,
     galleryImages: _gallery(9, ['6248711.JPG', '5277605.JPG', '2744921.JPG', '5791804.JPG', '26221.JPG']),
-    specifications: const {},
+    specifications: const {
+      'Length': '120 cm (Adjustable)',
+      'Width': '35 mm',
+      'Pattern': 'Plain with Contrast Stitch',
+      'Buckle Type': 'Pin Buckle',
+      'Buckle Material': 'Metal Alloy',
+      'Closure Type': 'Pin Buckle',
+      'Fit Type': 'Adjustable',
+    },
   ),
+  // p10: Glossy plain leather belt with square rectangular buckle.
   _WebsiteProduct(
     sourceProductId: 10,
     name: "MOSPL Men's Genuine Leather Belt (Black)",
@@ -192,8 +250,17 @@ final List<_WebsiteProduct> _websiteProducts = [
     color: 'Black',
     reviewCount: 0,
     galleryImages: _gallery(10, ['2581993.JPG', '6739940.JPG', '416401.JPG', '5746914.JPG', '7960762.JPG']),
-    specifications: const {},
+    specifications: const {
+      'Length': '120 cm (Adjustable)',
+      'Width': '32 mm',
+      'Pattern': 'Plain',
+      'Buckle Type': 'Pin Buckle',
+      'Buckle Material': 'Zinc Alloy',
+      'Closure Type': 'Pin Buckle',
+      'Finish': 'Glossy',
+    },
   ),
+  // p11: Plain belt with large square gold-tone buckle.
   _WebsiteProduct(
     sourceProductId: 11,
     name: "MOSPL Men's Genuine Leather Belt (Black)",
@@ -204,8 +271,18 @@ final List<_WebsiteProduct> _websiteProducts = [
     color: 'Black',
     reviewCount: 0,
     galleryImages: _gallery(11, ['7287021.JPG', '7926209.JPG', '7124796.JPG', '7582711.JPG', '9156093.JPG']),
-    specifications: const {},
+    specifications: const {
+      'Length': '120 cm (Adjustable)',
+      'Width': '38 mm',
+      'Pattern': 'Plain',
+      'Buckle Type': 'Pin Buckle',
+      'Buckle Material': 'Gold-Tone Alloy',
+      'Closure Type': 'Pin Buckle',
+      'Finish': 'Matte',
+    },
   ),
+
+  // ── Men Wallets continued (p12, p13) ────────────────────────────────────────
   _WebsiteProduct(
     sourceProductId: 12,
     name: "MOSPL Men's Genuine Leather Wallet (Black)",
@@ -223,6 +300,8 @@ final List<_WebsiteProduct> _websiteProducts = [
       'No. of Pocket': '2',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '2',
+      'Closure Type': 'Flap',
+      'Stitching': 'Double Stitch',
     },
   ),
   _WebsiteProduct(
@@ -242,8 +321,14 @@ final List<_WebsiteProduct> _websiteProducts = [
       'No. of Pocket': '8',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '2',
+      'Closure Type': 'Flap',
+      'Stitching': 'Double Stitch',
     },
   ),
+
+  // ── Women Wallets (p14–p18) ─────────────────────────────────────────────────
+  // p14: Envelope-style women wallet. Interior: 9 card slots, 1 zip coin pocket,
+  //      2 currency slots, 1 ID window → 3 main pockets.
   _WebsiteProduct(
     sourceProductId: 14,
     name: 'MOSPL Women Genuine Leather Wallet (Black)',
@@ -255,14 +340,17 @@ final List<_WebsiteProduct> _websiteProducts = [
     reviewCount: 0,
     galleryImages: _gallery(14, ['9515557.JPG', '6892907.JPG', '8749304.JPG', '5513411.JPG', '3908219.JPG']),
     specifications: const {
-      'Height': '110',
-      'Width': '180',
+      'Height': '110 mm',
+      'Width': '180 mm',
       'Card Slots': '9',
-      'No. of Pocket': _notSpecified,
+      'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '6',
+      'Closure Type': 'Button Snap',
+      'Coin Pocket': 'Yes (Zip)',
     },
   ),
+  // p15: Same envelope style in Brown. Same internal layout as p14.
   _WebsiteProduct(
     sourceProductId: 15,
     name: 'MOSPL Women Genuine Leather Wallet (Brown)',
@@ -274,14 +362,17 @@ final List<_WebsiteProduct> _websiteProducts = [
     reviewCount: 0,
     galleryImages: _gallery(15, ['6488801.JPG', '3995984.JPG', '9135591.JPG', '2925960.JPG', '7517531.JPG']),
     specifications: const {
-      'Height': '110',
-      'Width': '180',
+      'Height': '110 mm',
+      'Width': '180 mm',
       'Card Slots': '9',
-      'No. of Pocket': _notSpecified,
+      'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '6',
+      'Closure Type': 'Button Snap',
+      'Coin Pocket': 'Yes (Zip)',
     },
   ),
+  // p16: Wide flap women wallet (Black). Interior has 5 card slots, 7 compartments.
   _WebsiteProduct(
     sourceProductId: 16,
     name: 'MOSPL Women Genuine Leather Wallet (Black)',
@@ -293,14 +384,17 @@ final List<_WebsiteProduct> _websiteProducts = [
     reviewCount: 0,
     galleryImages: _gallery(16, ['8676670.JPG', '7011476.JPG', '8541991.JPG', '289662.JPG', '5303010.JPG']),
     specifications: const {
-      'Height': '110',
-      'Width': '220',
+      'Height': '110 mm',
+      'Width': '220 mm',
       'Card Slots': '5',
-      'No. of Pocket': _notSpecified,
+      'No. of Pocket': '4',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '7',
+      'Closure Type': 'Button Snap',
+      'Coin Pocket': 'Yes (Zip)',
     },
   ),
+  // p17: Same as p16 in Brown.
   _WebsiteProduct(
     sourceProductId: 17,
     name: 'MOSPL Women Genuine Leather Wallet (Brown)',
@@ -312,14 +406,18 @@ final List<_WebsiteProduct> _websiteProducts = [
     reviewCount: 0,
     galleryImages: _gallery(17, ['915622.JPG', '9612313.JPG', '6276838.JPG', '7410161.JPG', '4219408.JPG']),
     specifications: const {
-      'Height': '110',
-      'Width': '220',
+      'Height': '110 mm',
+      'Width': '220 mm',
       'Card Slots': '5',
-      'No. of Pocket': _notSpecified,
+      'No. of Pocket': '4',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '7',
+      'Closure Type': 'Button Snap',
+      'Coin Pocket': 'Yes (Zip)',
     },
   ),
+  // p18: Long bifold women wallet (Black). Interior: 13 card slots, 4 compartments,
+  //      1 ID window, 1 zip coin pocket → 3 pockets.
   _WebsiteProduct(
     sourceProductId: 18,
     name: 'MOSPL Women Genuine Leather Wallet (Black)',
@@ -331,38 +429,40 @@ final List<_WebsiteProduct> _websiteProducts = [
     reviewCount: 0,
     galleryImages: _gallery(18, ['8076164.JPG', '7315913.JPG', '6518186.JPG', '5153835.JPG', '4419334.JPG']),
     specifications: const {
-      'Height': '100',
-      'Width': '190',
+      'Height': '100 mm',
+      'Width': '190 mm',
       'Card Slots': '13',
-      'No. of Pocket': _notSpecified,
+      'No. of Pocket': '3',
       'Pattern': 'Brand Embossed',
       'No. of Compartments': '4',
+      'Closure Type': 'Button Snap',
+      'Coin Pocket': 'Yes (Zip)',
     },
   ),
 ];
 
-String _specificationValue(Map<String, String> specifications, String key) {
-  return specifications[key] ?? _notSpecified;
-}
-
 Map<String, String> _normalizedSpecifications(_WebsiteProduct record) {
-  return {
+  final specs = record.specifications;
+  final Map<String, String> normalized = {
     'Color': record.color,
-    'Height': _specificationValue(record.specifications, 'Height'),
-    'Width': _specificationValue(record.specifications, 'Width'),
-    'Card Slots': _specificationValue(record.specifications, 'Card Slots'),
-    'No. of Pocket': _specificationValue(record.specifications, 'No. of Pocket'),
-    'Pattern': _specificationValue(record.specifications, 'Pattern'),
-    'No. of Compartments': _specificationValue(record.specifications, 'No. of Compartments'),
     'Material': 'Genuine Leather',
-    'Stock': _notSpecified,
+    'Stock': '30',
   };
+
+  // Add all product-specific specs in order
+  for (final entry in specs.entries) {
+    normalized[entry.key] = entry.value;
+  }
+
+  return normalized;
 }
 
 String _sizeFromSpecs(Map<String, String> specifications) {
-  final height = specifications['Height'] ?? _notSpecified;
-  final width = specifications['Width'] ?? _notSpecified;
-  if (height == _notSpecified || width == _notSpecified) return _notSpecified;
+  final height = specifications['Height'];
+  final width = specifications['Width'];
+  final length = specifications['Length'];
+  if (length != null) return length;
+  if (height == null || width == null) return _notSpecified;
   return '$height x $width';
 }
 
@@ -386,7 +486,7 @@ Product _buildProduct(_WebsiteProduct record, int index) {
     discountPercentage: ((record.oldPrice - record.price) * 100 / record.oldPrice).round(),
     rating: 0,
     reviewCount: record.reviewCount,
-    stock: 1,
+    stock: 30,
     sku: _notSpecified,
     shortDescription: record.name,
     description: record.name,
@@ -395,8 +495,8 @@ Product _buildProduct(_WebsiteProduct record, int index) {
     size: _sizeFromSpecs(specs),
     color: record.color,
     deliveryInfo: 'Delivered by: 5 Days | Free Shipping',
-    returnPolicy: _notSpecified,
-    warranty: _notSpecified,
+    returnPolicy: record.returnPolicy,
+    warranty: record.warranty,
     sourceUrl: sourceUrl,
     thumbnail: record.galleryImages.first,
     galleryImages: record.galleryImages,
