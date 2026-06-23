@@ -395,6 +395,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final visibleSpecifications = product.specifications.entries
         .where((entry) => entry.key != 'Source URL' && entry.key != 'Source Product ID')
         .toList();
+
+    // ── Live rating computed from Firestore reviews ───────────────────────
+    final liveReviews = state.reviewsForProduct(widget.productId);
+    final liveReviewCount = liveReviews.length;
+    final liveAvgRating = liveReviewCount == 0
+        ? 0.0
+        : liveReviews.map((r) => r.rating).reduce((a, b) => a + b) / liveReviewCount;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Product Details'),
@@ -494,7 +501,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   borderRadius: BorderRadius.circular(4),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                    child: RatingSummary(product: product),
+                    child: _LiveRatingSummary(
+                      avgRating: liveAvgRating,
+                      reviewCount: liveReviewCount,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -549,11 +559,38 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 const Divider(height: 32),
                 // ── Ratings & Reviews section ────────────────────────────────
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
-                      child: Text(
-                        'Ratings & Reviews',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ratings & Reviews',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 2),
+                          if (liveReviewCount > 0)
+                            Row(
+                              children: [
+                                RatingBarIndicator(
+                                  rating: liveAvgRating,
+                                  itemSize: 16,
+                                  itemBuilder: (context, _) => const Icon(Icons.star, color: Color(0xffffb300)),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${liveAvgRating.toStringAsFixed(1)} · $liveReviewCount ${liveReviewCount == 1 ? 'review' : 'reviews'}',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
+                                ),
+                              ],
+                            )
+                          else
+                            Text(
+                              '0 reviews',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                            ),
+                        ],
                       ),
                     ),
                     TextButton.icon(
@@ -601,6 +638,39 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         const SnackBar(content: Text('Could not open source listing.')),
       );
     }
+  }
+}
+
+// ── Live rating summary widget (reads from Firestore reviews) ─────────────────
+class _LiveRatingSummary extends StatelessWidget {
+  const _LiveRatingSummary({required this.avgRating, required this.reviewCount});
+
+  final double avgRating;
+  final int reviewCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final reviewLabel = reviewCount == 1 ? '1 review' : '$reviewCount reviews';
+    if (reviewCount == 0) {
+      return Row(
+        children: [
+          const Icon(Icons.star_border, color: Color(0xffffb300), size: 18),
+          const SizedBox(width: 8),
+          Text('No Rating yet | $reviewLabel'),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        RatingBarIndicator(
+          rating: avgRating,
+          itemSize: 18,
+          itemBuilder: (context, _) => const Icon(Icons.star, color: Color(0xffffb300)),
+        ),
+        const SizedBox(width: 8),
+        Text('${avgRating.toStringAsFixed(1)} | $reviewLabel'),
+      ],
+    );
   }
 }
 
