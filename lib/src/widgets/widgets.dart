@@ -95,9 +95,16 @@ class ProductImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = url.startsWith('assets/')
+    var resolvedUrl = url;
+    if (resolvedUrl.startsWith('/static/products/')) {
+      resolvedUrl = resolvedUrl.replaceFirst('/static/products/', 'assets/products/');
+    } else if (resolvedUrl.startsWith('static/products/')) {
+      resolvedUrl = resolvedUrl.replaceFirst('static/products/', 'assets/products/');
+    }
+
+    final image = resolvedUrl.startsWith('assets/')
         ? Image.asset(
-            url,
+            resolvedUrl,
             height: height,
             width: width,
             fit: fit,
@@ -109,7 +116,7 @@ class ProductImage extends StatelessWidget {
             ),
           )
         : CachedNetworkImage(
-            imageUrl: url,
+            imageUrl: resolvedUrl,
             height: height,
             width: width,
             fit: fit,
