@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const { db, isFirebaseConfigured } = require('../config/firebase');
+const { db, auth, isFirebaseConfigured } = require('../config/firebase');
 const { buildBanners, buildCategories, buildCoupons, buildProducts } = require('./productSeed');
 
 async function commitInChunks(items, writeItem, chunkSize = 400) {
@@ -71,6 +71,49 @@ async function main() {
     active: true,
     createdAt: new Date().toISOString(),
   });
+
+  // Seed default auth users in Firebase Authentication
+  if (auth) {
+    try {
+      await auth.createUser({
+        uid: 'dev-admin',
+        email: 'admin@mospl.test',
+        password: 'password123',
+        displayName: 'MOSPL Admin',
+      });
+      console.log('Created admin user in Firebase Auth');
+    } catch (e) {
+      if (e.code === 'auth/uid-already-exists' || e.code === 'auth/email-already-exists') {
+        await auth.updateUser('dev-admin', {
+          password: 'password123',
+          displayName: 'MOSPL Admin',
+        });
+        console.log('Updated admin user in Firebase Auth');
+      } else {
+        console.error('Error creating admin in Firebase Auth:', e);
+      }
+    }
+
+    try {
+      await auth.createUser({
+        uid: 'dev-user',
+        email: 'shopper@mospl.test',
+        password: 'password123',
+        displayName: 'MOSPL Shopper',
+      });
+      console.log('Created shopper user in Firebase Auth');
+    } catch (e) {
+      if (e.code === 'auth/uid-already-exists' || e.code === 'auth/email-already-exists') {
+        await auth.updateUser('dev-user', {
+          password: 'password123',
+          displayName: 'MOSPL Shopper',
+        });
+        console.log('Updated shopper user in Firebase Auth');
+      } else {
+        console.error('Error creating shopper in Firebase Auth:', e);
+      }
+    }
+  }
 
   console.log(
     `Seeded ${products.length} MOSPL products, ${categories.length} categories, ${coupons.length} coupons, and ${banners.length} banners. Removed ${removedProducts} old generated products and ${removedInventory} old inventory rows.`,
