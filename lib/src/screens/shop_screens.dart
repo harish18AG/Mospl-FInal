@@ -423,12 +423,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             onTap: () => context.push('/gallery/${product.productId}?index=$_selectedImage'),
             child: Container(
               color: Theme.of(context).cardColor,
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: ProductImage(
-                  url: images[_selectedImage],
-                  fit: BoxFit.contain,
-                  heroTag: 'product-${product.productId}',
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 420),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: ProductImage(
+                    url: images[_selectedImage],
+                    fit: BoxFit.contain,
+                    heroTag: 'product-${product.productId}',
+                  ),
                 ),
               ),
             ),
