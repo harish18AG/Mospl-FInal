@@ -72,7 +72,7 @@ def tap(driver, x, y, duration=150):
             if x >= w: x = w - 5
             if y >= h: y = h - 5
         driver.tap([(x, y)], duration)
-        time.sleep(0.8)
+        time.sleep(0.15)
     except Exception as e:
         print(f"[TAP] Failed at ({x},{y}): {e}")
 
@@ -81,7 +81,7 @@ def swipe_up(driver):
     """Scroll down (swipe upward)."""
     try:
         driver.swipe(540, 1800, 540, 600, 700)
-        time.sleep(0.6)
+        time.sleep(0.15)
     except Exception:
         pass
 
@@ -90,7 +90,7 @@ def swipe_down(driver):
     """Scroll up (swipe downward)."""
     try:
         driver.swipe(540, 600, 540, 1800, 700)
-        time.sleep(0.6)
+        time.sleep(0.15)
     except Exception:
         pass
 
@@ -99,7 +99,7 @@ def swipe_left(driver):
     """Swipe left (next slide)."""
     try:
         driver.swipe(900, 650, 180, 650, 500)
-        time.sleep(0.6)
+        time.sleep(0.15)
     except Exception:
         pass
 
@@ -108,7 +108,7 @@ def swipe_right(driver):
     """Swipe right (previous slide)."""
     try:
         driver.swipe(180, 650, 900, 650, 500)
-        time.sleep(0.6)
+        time.sleep(0.15)
     except Exception:
         pass
 
@@ -117,42 +117,42 @@ def go_home(driver):
     """Tap the Home nav tab."""
     if not tap_desc(driver, "Tab 1 of 5", timeout=2):
         tap(driver, *NAV_HOME)
-    time.sleep(1.5)
+    time.sleep(0.2)
 
 
 def go_categories(driver):
     """Tap the Categories nav tab."""
     if not tap_desc(driver, "Tab 2 of 5", timeout=2):
         tap(driver, *NAV_CATEGORIES)
-    time.sleep(1.5)
+    time.sleep(0.2)
 
 
 def go_wishlist(driver):
     """Tap the Wishlist nav tab."""
     if not tap_desc(driver, "Tab 3 of 5", timeout=2):
         tap(driver, *NAV_WISHLIST)
-    time.sleep(1.5)
+    time.sleep(0.2)
 
 
 def go_cart(driver):
     """Tap the Cart nav tab."""
     if not tap_desc(driver, "Tab 4 of 5", timeout=2):
         tap(driver, *NAV_CART)
-    time.sleep(1.5)
+    time.sleep(0.2)
 
 
 def go_profile(driver):
     """Tap the Profile nav tab."""
     if not tap_desc(driver, "Tab 5 of 5", timeout=2):
         tap(driver, *NAV_PROFILE)
-    time.sleep(1.5)
+    time.sleep(0.2)
 
 
 def go_back(driver):
     """Press Android back button."""
     try:
         driver.press_keycode(4)
-        time.sleep(1)
+        time.sleep(0.2)
     except Exception:
         pass
 
@@ -246,6 +246,9 @@ def _is_on_login(driver):
         return False
 
 
+_last_test_failed = False
+
+
 def _perform_login(driver):
     """Type credentials and tap Sign In."""
     try:
@@ -253,23 +256,23 @@ def _perform_login(driver):
         fields = driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
         driver.implicitly_wait(15)
         if len(fields) >= 2:
-            fields[0].click(); time.sleep(0.4)
-            fields[0].clear(); time.sleep(0.2)
-            fields[0].send_keys(EMAIL); time.sleep(0.4)
+            fields[0].click(); time.sleep(0.15)
+            fields[0].clear(); time.sleep(0.1)
+            fields[0].send_keys(EMAIL); time.sleep(0.2)
             try: driver.hide_keyboard()
             except Exception: pass
-            time.sleep(0.3)
+            time.sleep(0.1)
 
-            fields[1].click(); time.sleep(0.4)
-            fields[1].clear(); time.sleep(0.2)
-            fields[1].send_keys(PASSWORD); time.sleep(0.4)
+            fields[1].click(); time.sleep(0.15)
+            fields[1].clear(); time.sleep(0.1)
+            fields[1].send_keys(PASSWORD); time.sleep(0.2)
             try: driver.hide_keyboard()
             except Exception: pass
-            time.sleep(0.3)
+            time.sleep(0.1)
 
             # Sign In button  bounds=[53,1093][1028,1219]  centre (540,1156)
             tap(driver, 540, 1156, duration=200)
-            time.sleep(10)
+            time.sleep(3)
             return True
     except Exception as e:
         print(f"[LOGIN] Error: {e}")
@@ -285,42 +288,51 @@ def _ensure_logged_in(driver):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def ensure_app_foreground(driver):
+def ensure_app_foreground(driver, request):
     """Before each test: ensure app is foreground and user is logged in."""
+    global _last_test_failed
     if getattr(driver, "is_mock", False):
+        yield
         return
+
+    was_closed = False
     try:
         state = driver.query_app_state(APP_PACKAGE)
         if state < 4:
             driver.activate_app(APP_PACKAGE)
-            time.sleep(5)
+            time.sleep(2)
+            was_closed = True
     except Exception:
         pass
 
-    # Wait up to 20s for login OR home screen
-    success = False
-    for _ in range(10):
-        if _is_on_login(driver) or _is_logged_in(driver):
-            success = True
-            break
-        time.sleep(2)
+    # Only perform slow Appium element checks if the app was relaunched,
+    # or if the previous test failed (indicating potential state mismatch).
+    if was_closed or _last_test_failed:
+        success = False
+        for _ in range(5):
+            if _is_on_login(driver) or _is_logged_in(driver):
+                success = True
+                break
+            time.sleep(1)
 
-    if not success:
-        print("[FOREGROUND] App stuck/unresponsive (neither login nor home loaded). Force relaunching...")
-        try:
-            driver.terminate_app(APP_PACKAGE)
-            time.sleep(2)
-            driver.activate_app(APP_PACKAGE)
-            time.sleep(5)
-            # Wait up to 30s for the relaunched app to load the home or login screen
-            for _ in range(15):
-                if _is_on_login(driver) or _is_logged_in(driver):
-                    break
-                time.sleep(2)
-        except Exception as e:
-            print(f"[FOREGROUND] Error relaunching: {e}")
+        if not success:
+            print("[FOREGROUND] App stuck/unresponsive (neither login nor home loaded). Force relaunching...")
+            try:
+                driver.terminate_app(APP_PACKAGE)
+                time.sleep(1)
+                driver.activate_app(APP_PACKAGE)
+                time.sleep(3)
+            except Exception:
+                pass
+        _ensure_logged_in(driver)
+        _last_test_failed = False
 
-    _ensure_logged_in(driver)
+    yield
+
+    # Set failure flag if test raised an exception to trigger recovery on next test
+    import sys
+    if sys.exc_info()[0] is not None:
+        _last_test_failed = True
 
 
 # ═════════════════════════════════════════════════════════════════════════════

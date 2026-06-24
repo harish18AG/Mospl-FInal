@@ -354,7 +354,13 @@ def driver():
     print(f"\n[APPIUM] Connecting to Appium server at {APPIUM_SERVER}...")
     try:
         drv = appium_webdriver.Remote(APPIUM_SERVER, options=options)
-        drv.implicitly_wait(15)
+        
+        # Monkey-patch to cap implicit wait to 3s for fast test execution
+        original_implicitly_wait = drv.implicitly_wait
+        def capped_implicitly_wait(time_to_wait):
+            original_implicitly_wait(min(time_to_wait, 3))
+        drv.implicitly_wait = capped_implicitly_wait
+        drv.implicitly_wait(3)
 
         # Wait for Flutter to fully initialise past the splash screen
         _wait_for_flutter_ready(drv, max_wait=45)
@@ -363,7 +369,7 @@ def driver():
         try:
             drv.implicitly_wait(1)
             fields = drv.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
-            drv.implicitly_wait(15)
+            drv.implicitly_wait(3)
             if fields:
                 print("[APPIUM] Performing initial login...")
                 _perform_login(drv)
@@ -372,7 +378,7 @@ def driver():
                 _wait_for_flutter_ready(drv, max_wait=20)
         except Exception as e:
             print(f"[APPIUM] Pre-login check failed: {e}")
-            drv.implicitly_wait(15)
+            drv.implicitly_wait(3)
 
         print("[APPIUM] Driver ready — starting test session.\n")
         yield drv
