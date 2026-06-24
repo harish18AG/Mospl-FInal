@@ -67,7 +67,7 @@ If no specific products are asked for or relevant, return an empty array [] for 
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
