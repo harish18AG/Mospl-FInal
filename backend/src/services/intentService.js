@@ -31,7 +31,9 @@ function detectIntent(text) {
     'what is best', 'what to buy', 'personalized', 'premium', 'luxury', 
     'choose', 'pick', 'suit', 'ideal', 'best', 'father', 'husband', 'wife', 
     'mother', 'brother', 'sister', 'friend', 'birthday', 'anniversary',
-    'business travel', 'traveler', 'help me buy', 'help me choose'
+    'business travel', 'traveler', 'help me buy', 'help me choose',
+    'difference', 'explain', 'why', 'how', 'details', 'what is the difference',
+    'tell me about', 'describe'
   ];
   if (geminiKeywords.some(keyword => clean.includes(keyword))) {
     return INTENTS.GEMINI;
