@@ -87,12 +87,19 @@ def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
 
-    if report.when == "call":
+    # Capture setup failures, skips, and calls
+    is_setup_failure = report.when == "setup" and report.failed
+    is_skipped = report.when == "setup" and report.skipped
+    is_call = report.when == "call"
+
+    if is_call or is_setup_failure or is_skipped:
         duration = round(report.duration, 3)
         status = "PASS" if report.passed else ("FAIL" if report.failed else "SKIP")
         error_details = ""
-        if report.failed and report.longreprtext:
+        if report.failed and hasattr(report, "longreprtext") and report.longreprtext:
             error_details = str(report.longreprtext)[-300:]
+        elif report.failed and hasattr(report, "longrepr") and report.longrepr:
+            error_details = str(report.longrepr)[-300:]
 
         # Determine category from markers
         markers = [m.name for m in item.iter_markers()]

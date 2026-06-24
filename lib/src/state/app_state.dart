@@ -203,13 +203,44 @@ class AppState extends ChangeNotifier {
           .get();
       for (final doc in snapshot.docs) {
         try {
-          final product = Product.fromMap({...doc.data(), 'productId': doc.id});
-          final index = _allProducts.indexWhere((p) => p.productId == product.productId);
+          final docData = doc.data();
+          final index = _allProducts.indexWhere((p) => p.productId == doc.id);
           if (index >= 0) {
-            // Override local copy with Firestore version (e.g. updated stock)
-            _allProducts[index] = product;
+            // Merge Firestore values into the existing local copy
+            final existing = _allProducts[index];
+            _allProducts[index] = Product(
+              productId: existing.productId,
+              name: docData['name']?.toString() ?? existing.name,
+              category: docData['category']?.toString() ?? existing.category,
+              subcategory: (docData['subcategory'] ?? docData['category'])?.toString() ?? existing.subcategory,
+              price: docData['price'] != null ? _int(docData['price']) : existing.price,
+              oldPrice: docData['oldPrice'] != null ? _int(docData['oldPrice']) : existing.oldPrice,
+              discountPercentage: docData['discountPercentage'] != null ? _int(docData['discountPercentage']) : existing.discountPercentage,
+              rating: docData['rating'] != null ? _double(docData['rating']) : existing.rating,
+              reviewCount: docData['reviewCount'] != null ? _int(docData['reviewCount']) : existing.reviewCount,
+              stock: docData['stock'] != null ? _int(docData['stock']) : existing.stock,
+              sku: docData['sku']?.toString() ?? existing.sku,
+              shortDescription: (docData['shortDescription'] ?? docData['description'])?.toString() ?? existing.shortDescription,
+              description: docData['description']?.toString() ?? existing.description,
+              specifications: docData['specifications'] != null ? _stringMap(docData['specifications']) : existing.specifications,
+              material: docData['material']?.toString() ?? existing.material,
+              size: docData['size']?.toString() ?? existing.size,
+              color: docData['color']?.toString() ?? existing.color,
+              deliveryInfo: docData['deliveryInfo']?.toString() ?? existing.deliveryInfo,
+              returnPolicy: docData['returnPolicy']?.toString() ?? existing.returnPolicy,
+              warranty: docData['warranty']?.toString() ?? existing.warranty,
+              sourceUrl: docData['sourceUrl']?.toString() ?? existing.sourceUrl,
+              thumbnail: docData['thumbnail']?.toString() ?? existing.thumbnail,
+              galleryImages: docData['galleryImages'] != null ? _strings(docData['galleryImages']) : existing.galleryImages,
+              isFeatured: docData['isFeatured'] != null ? docData['isFeatured'] == true : existing.isFeatured,
+              isTrending: docData['isTrending'] != null ? docData['isTrending'] == true : existing.isTrending,
+              isBestSeller: docData['isBestSeller'] != null ? docData['isBestSeller'] == true : existing.isBestSeller,
+              createdAt: docData['createdAt'] != null ? _date(docData['createdAt']) : existing.createdAt,
+              updatedAt: _date(docData['updatedAt'] ?? existing.updatedAt),
+            );
           } else {
-            // New product added by admin – prepend so it's visible
+            // New product added by admin – deserialize completely
+            final product = Product.fromMap({...docData, 'productId': doc.id});
             _allProducts.insert(0, product);
           }
         } catch (_) {}
@@ -1307,8 +1338,7 @@ class AppState extends ChangeNotifier {
 
   /// Reduces stock locally and in Firestore for every product in the order.
   void _decrementStockForOrder(AppOrder order) {
-    // Only persist directly to Firestore from the client if NOT using the backend API
-    final db = (_firebaseReady && backendToken == null) ? firestore.FirebaseFirestore.instance : null;
+    final db = _firebaseReady ? firestore.FirebaseFirestore.instance : null;
     for (final line in order.items) {
       final productId = line.product.productId;
       final qty = line.quantity;
@@ -1318,14 +1348,18 @@ class AppState extends ChangeNotifier {
         final newStock = (_allProducts[index].stock - qty).clamp(0, 99999);
         _allProducts[index] = _allProducts[index].copyWith(stock: newStock, updatedAt: DateTime.now());
         // Persist updated stock to Firestore
-        db?.collection('products').doc(productId).set(
-          {'stock': newStock, 'updatedAt': DateTime.now().toIso8601String()},
-          firestore.SetOptions(merge: true),
-        ).ignore();
-        db?.collection('inventory').doc(productId).set(
-          {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
-          firestore.SetOptions(merge: true),
-        ).ignore();
+        if (db != null) {
+          db.collection('products').doc(productId).set(
+            {'stock': newStock, 'updatedAt': DateTime.now().toIso8601String()},
+            firestore.SetOptions(merge: true),
+          ).ignore();
+          if (currentUser?.isAdmin == true) {
+            db.collection('inventory').doc(productId).set(
+              {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
+              firestore.SetOptions(merge: true),
+            ).ignore();
+          }
+        }
       }
     }
   }
@@ -1718,6 +1752,28 @@ class AppState extends ChangeNotifier {
       lowStockThreshold: lowStockThreshold,
       token: backendToken!,
     );
+    if (_firebaseReady) {
+      try {
+        final timestamp = DateTime.now().toIso8601String();
+        await firestore.FirebaseFirestore.instance
+            .collection('products')
+            .doc(productId)
+            .set({
+              'stock': stock,
+              'updatedAt': timestamp,
+            }, firestore.SetOptions(merge: true));
+        await firestore.FirebaseFirestore.instance
+            .collection('inventory')
+            .doc(productId)
+            .set({
+              'stock': stock,
+              'lowStockThreshold': lowStockThreshold,
+              'lastRestockedAt': timestamp,
+            }, firestore.SetOptions(merge: true));
+      } catch (error) {
+        catalogError = 'Stock updated locally but Firestore write failed: $error';
+      }
+    }
     inventory.removeWhere((entry) => entry.productId == productId);
     inventory.add(item);
     final index = _allProducts.indexWhere((product) => product.productId == productId);
@@ -2329,3 +2385,32 @@ class AppState extends ChangeNotifier {
     ]);
   }
 }
+
+int _int(dynamic value, [int fallback = 0]) {
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+double _double(dynamic value, [double fallback = 0]) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+DateTime _date(dynamic value) {
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+  return DateTime.now();
+}
+
+List<String> _strings(dynamic value) {
+  if (value is List) return value.map((item) => item.toString()).toList();
+  return const [];
+}
+
+Map<String, String> _stringMap(dynamic value) {
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item.toString()));
+  }
+  return const {};
+}
+

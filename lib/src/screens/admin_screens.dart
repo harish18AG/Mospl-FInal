@@ -172,10 +172,12 @@ class AdminProductsScreen extends StatelessWidget {
               trailing: PopupMenuButton<String>(
                 onSelected: (value) {
                   if (value == 'edit') context.push('/admin/products/edit/${product.productId}');
+                  if (value == 'stock') _showStockDialog(context, product);
                   if (value == 'delete') context.read<AppState>().deleteProduct(product.productId);
                 },
                 itemBuilder: (context) => const [
                   PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'stock', child: Text('Update Stock')),
                   PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
               ),
@@ -184,6 +186,34 @@ class AdminProductsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void _showStockDialog(BuildContext context, Product product) {
+    final stock = TextEditingController(text: product.stock.toString());
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Update Stock - ${product.sku}'),
+        content: TextField(
+          controller: stock,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Stock'),
+        ),
+        actions: [
+          TextButton(onPressed: () => dialogContext.pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              await context.read<AppState>().updateInventoryStock(
+                    productId: product.productId,
+                    stock: int.tryParse(stock.text) ?? product.stock,
+                  );
+              if (dialogContext.mounted) dialogContext.pop();
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    ).whenComplete(stock.dispose);
   }
 }
 

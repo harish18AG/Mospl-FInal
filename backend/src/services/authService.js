@@ -45,7 +45,17 @@ async function register({ name, email, password }) {
     }
     const role = await resolveRole({ uid: firebaseUser.uid, email: cleanEmail, claims: firebaseUser.customClaims });
     user = { uid: firebaseUser.uid, email: cleanEmail, name, role, createdAt: new Date().toISOString() };
-    if (db) await db.collection('users').doc(firebaseUser.uid).set(user, { merge: true });
+    if (db) {
+      await db.collection('users').doc(firebaseUser.uid).set(user, { merge: true });
+      if (role === 'admin') {
+        await db.collection('admins').doc(firebaseUser.uid).set({
+          uid: firebaseUser.uid,
+          email: cleanEmail,
+          active: true,
+          createdAt: new Date().toISOString(),
+        }, { merge: true });
+      }
+    }
   } else {
     if (store.users.has(cleanEmail)) throw new Error('Email already exists.');
     user = {
@@ -91,7 +101,17 @@ async function login({ email, password }) {
     role,
     updatedAt: new Date().toISOString(),
   };
-  if (db) await db.collection('users').doc(userRecord.uid).set(user, { merge: true });
+  if (db) {
+    await db.collection('users').doc(userRecord.uid).set(user, { merge: true });
+    if (role === 'admin') {
+      await db.collection('admins').doc(userRecord.uid).set({
+        uid: userRecord.uid,
+        email: cleanEmail,
+        active: true,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+  }
   return { user, token: signApiToken(user) };
 }
 
@@ -110,7 +130,17 @@ async function firebaseSession({ idToken }) {
     role,
     updatedAt: new Date().toISOString(),
   };
-  if (db) await db.collection('users').doc(user.uid).set(user, { merge: true });
+  if (db) {
+    await db.collection('users').doc(user.uid).set(user, { merge: true });
+    if (role === 'admin') {
+      await db.collection('admins').doc(user.uid).set({
+        uid: user.uid,
+        email,
+        active: true,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+  }
   return { user, token: signApiToken(user) };
 }
 
@@ -141,7 +171,17 @@ async function updateProfile(uid, payload) {
     role,
     updatedAt: new Date().toISOString(),
   };
-  if (db) await db.collection('users').doc(uid).set(updated, { merge: true });
+  if (db) {
+    await db.collection('users').doc(uid).set(updated, { merge: true });
+    if (role === 'admin') {
+      await db.collection('admins').doc(uid).set({
+        uid,
+        email,
+        active: true,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+  }
   return updated;
 }
 
