@@ -14,6 +14,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 # Global container to collect all test results across the session
 test_results = []
 
+# Separate container for vulnerability-only results
+vuln_results = []
+
 BASE_URL = "https://harish18ag.github.io/Mospl-FInal/#/signin"
 EMAIL = "harishanbazhagan2005@gmail.com"
 PASSWORD = "harbha@123"
@@ -93,33 +96,67 @@ def pytest_runtest_makereport(item, call):
 
         # Determine category from markers
         markers = [m.name for m in item.iter_markers()]
-        if "ui" in markers:
-            category = "UI/UX"
-        elif "functional" in markers:
-            category = "Functional"
-        elif "validation" in markers:
-            category = "Validation"
-        elif "unit" in markers:
-            category = "Unit"
-        elif "deployment" in markers:
-            category = "Deployment"
-        else:
-            category = "General"
+        is_vuln = "vulnerability" in markers
 
-        test_results.append({
-            "Test ID": f"TC-{len(test_results) + 1:03d}",
-            "Category": category,
-            "Test Name": item.name,
-            "Description": item.function.__doc__ or item.name,
-            "Status": status,
-            "Duration (s)": duration,
-            "Error Details": error_details,
-            "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        })
+        if is_vuln:
+            # Derive security sub-category from test class / name
+            class_name = (item.cls.__name__ if item.cls else "") or ""
+            if "XSS" in class_name or "xss" in item.name.lower():
+                category = "XSS"
+            elif "SQL" in class_name or "sqli" in item.name.lower():
+                category = "SQLi"
+            elif "Auth" in class_name or "auth" in item.name.lower():
+                category = "Auth"
+            elif "Header" in class_name or "header" in item.name.lower():
+                category = "Headers"
+            elif "Input" in class_name or "input" in item.name.lower():
+                category = "Input"
+            elif "Session" in class_name or "session" in item.name.lower():
+                category = "Session"
+            else:
+                category = "Validation"
+
+            vuln_results.append({
+                "Test ID": f"VT-{len(vuln_results) + 1:03d}",
+                "Category": category,
+                "Test Name": item.name,
+                "Description": item.function.__doc__ or item.name,
+                "Status": status,
+                "Duration (s)": duration,
+                "Error Details": error_details,
+                "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            })
+        else:
+            if "ui" in markers:
+                category = "UI/UX"
+            elif "functional" in markers:
+                category = "Functional"
+            elif "validation" in markers:
+                category = "Validation"
+            elif "unit" in markers:
+                category = "Unit"
+            elif "deployment" in markers:
+                category = "Deployment"
+            else:
+                category = "General"
+
+            test_results.append({
+                "Test ID": f"TC-{len(test_results) + 1:03d}",
+                "Category": category,
+                "Test Name": item.name,
+                "Description": item.function.__doc__ or item.name,
+                "Status": status,
+                "Duration (s)": duration,
+                "Error Details": error_details,
+                "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            })
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Called after the entire test session is done — generate Excel report."""
+    """Called after the entire test session is done — generate Excel reports."""
     if test_results:
         from utils.report_generator import generate_excel_report
         generate_excel_report(test_results)
+    if vuln_results:
+        from utils.vulnerability_report_generator import generate_vulnerability_excel_report
+        generate_vulnerability_excel_report(vuln_results, prefix="Selenium")
