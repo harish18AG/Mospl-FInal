@@ -36,6 +36,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "deployment: mark test as deployment/status test")
     config.addinivalue_line("markers", "navigation: mark test as navigation test")
     config.addinivalue_line("markers", "performance: mark test as performance test")
+    config.addinivalue_line("markers", "vulnerability: mark test as security/vulnerability test")
 
 
 def _wait_for_flutter_ready(drv, max_wait=45):

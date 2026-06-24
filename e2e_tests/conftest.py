@@ -26,6 +26,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "validation: mark test as validation test")
     config.addinivalue_line("markers", "unit: mark test as unit test")
     config.addinivalue_line("markers", "deployment: mark test as deployment/status test")
+    config.addinivalue_line("markers", "vulnerability: mark test as security/vulnerability test")
 
 
 @pytest.fixture(scope="session")
