@@ -236,13 +236,14 @@ class ApiClient {
   Future<Map<String, dynamic>> updateOrderStatus({
     required String orderId,
     required String status,
-    required String paymentStatus,
+    String? paymentStatus,
     required String token,
   }) async {
-    final json = await _patchJson('/api/orders/$orderId/status', {
-      'status': status,
-      'paymentStatus': paymentStatus,
-    }, token: token);
+    final body = <String, dynamic>{'status': status};
+    if (paymentStatus != null) {
+      body['paymentStatus'] = paymentStatus;
+    }
+    final json = await _patchJson('/api/orders/$orderId/status', body, token: token);
     return (json['order'] as Map).cast<String, dynamic>();
   }
 

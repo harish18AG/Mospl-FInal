@@ -8,14 +8,14 @@ const list = asyncHandler(async (req, res) => {
     const snapshot = await db.collection('inventory').get();
     let inventory = snapshot.docs.map((doc) => ({ productId: doc.id, ...doc.data() }));
     if (req.query.lowStock === 'true') {
-      inventory = inventory.filter((item) => Number(item.stock || 0) < Number(item.lowStockThreshold || 15));
+      inventory = inventory.filter((item) => Number(item.stock || 0) <= Number(item.lowStockThreshold || 5));
     }
     res.json({ ok: true, inventory });
     return;
   }
   const lowOnly = req.query.lowStock === 'true';
   const inventory = lowOnly
-    ? store.inventory.filter((item) => item.stock < item.lowStockThreshold)
+    ? store.inventory.filter((item) => item.stock <= item.lowStockThreshold)
     : store.inventory;
   res.json({ ok: true, inventory });
 });
@@ -28,7 +28,7 @@ const update = asyncHandler(async (req, res) => {
     const inventory = {
       productId: req.params.productId,
       stock: Number(req.body.stock ?? existing.data().stock),
-      lowStockThreshold: Number(req.body.lowStockThreshold ?? existing.data().lowStockThreshold ?? 15),
+      lowStockThreshold: Number(req.body.lowStockThreshold ?? existing.data().lowStockThreshold ?? 5),
       lastRestockedAt: new Date().toISOString(),
     };
     await ref.set(inventory, { merge: true });

@@ -1,5 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
-const { db, isFirebaseConfigured } = require('../config/firebase');
+const { db, isFirebaseConfigured, admin } = require('../config/firebase');
 const store = require('../services/store');
 const { httpError } = require('../utils/httpError');
 
@@ -88,6 +88,17 @@ async function saveFirestoreOrder(req, items) {
       ...item,
       createdAt: timestamp,
     });
+
+    // Decrement stock in products and inventory
+    const decrementValue = -Number(item.quantity);
+    batch.set(db.collection('products').doc(item.productId), {
+      stock: admin.firestore.FieldValue.increment(decrementValue),
+      updatedAt: timestamp,
+    }, { merge: true });
+
+    batch.set(db.collection('inventory').doc(item.productId), {
+      stock: admin.firestore.FieldValue.increment(decrementValue),
+    }, { merge: true });
   });
   batch.set(db.collection('carts').doc(req.user.uid), { userId: req.user.uid, items: [], updatedAt: timestamp }, { merge: true });
   await batch.commit();
@@ -140,6 +151,19 @@ const createOrder = asyncHandler(async (req, res) => {
   store.orders.unshift(order);
   store.orderItems.push(...items.map((item, index) => ({ orderItemId: `${order.orderId}-${index}`, orderId: order.orderId, ...item })));
   store.carts.set(req.user.uid, []);
+
+  // Decrement stock in-memory fallback
+  items.forEach((item) => {
+    const prod = store.products.find((p) => p.productId === item.productId);
+    if (prod) {
+      prod.stock = Math.max(0, prod.stock - item.quantity);
+    }
+    const inv = store.inventory.find((i) => i.productId === item.productId);
+    if (inv) {
+      inv.stock = Math.max(0, inv.stock - item.quantity);
+    }
+  });
+
   res.status(201).json({ ok: true, order });
 });
 

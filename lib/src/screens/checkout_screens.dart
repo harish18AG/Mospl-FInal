@@ -841,8 +841,23 @@ class OrderFailedScreen extends StatelessWidget {
   }
 }
 
-class MyOrdersScreen extends StatelessWidget {
+class MyOrdersScreen extends StatefulWidget {
   const MyOrdersScreen({super.key});
+
+  @override
+  State<MyOrdersScreen> createState() => _MyOrdersScreenState();
+}
+
+class _MyOrdersScreenState extends State<MyOrdersScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AppState>().loadOrders();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -966,13 +981,29 @@ AppOrder _paymentFallbackOrder(AppState state, String orderId) {
   );
 }
 
-class TrackOrderScreen extends StatelessWidget {
+class TrackOrderScreen extends StatefulWidget {
   const TrackOrderScreen({super.key, required this.orderId});
 
   final String orderId;
 
   @override
+  State<TrackOrderScreen> createState() => _TrackOrderScreenState();
+}
+
+class _TrackOrderScreenState extends State<TrackOrderScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AppState>().loadOrders();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final orderId = widget.orderId;
     final state = context.watch<AppState>();
     final order = state.orders.firstWhere((item) => item.orderId == orderId, orElse: () => _paymentFallbackOrder(state, orderId));
     final steps = const [
@@ -1073,9 +1104,11 @@ class TrackOrderScreen extends StatelessWidget {
                         children: [
                           Text(steps[index].$1, style: const TextStyle(fontWeight: FontWeight.w900)),
                           const SizedBox(height: 4),
-                          Text(failed
-                              ? 'Payment failed for this order - $orderId'
-                              : '${steps[index].$2} - $orderId'),
+                          Text(order.status == 'Cancelled'
+                              ? 'Order Cancelled - $orderId'
+                              : (failed
+                                  ? 'Payment failed for this order - $orderId'
+                                  : '${steps[index].$2} - $orderId')),
                         ],
                       ),
                     ),

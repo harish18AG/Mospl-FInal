@@ -32,7 +32,7 @@ async function main() {
   const inventory = products.map((product) => ({
     productId: product.productId,
     stock: product.stock,
-    lowStockThreshold: 15,
+    lowStockThreshold: 5,
     lastRestockedAt: product.updatedAt,
   }));
 

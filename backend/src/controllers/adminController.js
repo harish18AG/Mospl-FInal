@@ -18,8 +18,8 @@ const dashboard = asyncHandler(async (req, res) => {
     ]);
     const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
     const lowStock = inventory.length
-      ? inventory.filter((item) => Number(item.stock || 0) < Number(item.lowStockThreshold || 15)).length
-      : products.filter((product) => Number(product.stock || 0) < 15).length;
+      ? inventory.filter((item) => Number(item.stock || 0) <= Number(item.lowStockThreshold || 5)).length
+      : products.filter((product) => Number(product.stock || 0) <= 5).length;
     res.json({
       ok: true,
       metrics: {
@@ -46,7 +46,7 @@ const dashboard = asyncHandler(async (req, res) => {
       products: store.products.length,
       orders: store.orders.length,
       users: store.users.size,
-      lowStock: store.inventory.filter((item) => item.stock < item.lowStockThreshold).length,
+      lowStock: store.inventory.filter((item) => item.stock <= item.lowStockThreshold).length,
       payments: store.payments.length,
     },
     recentOrders: store.orders.slice(0, 10),
@@ -89,7 +89,7 @@ const analytics = asyncHandler(async (req, res) => {
         sales: products.filter((product) => product.category === category).length,
       })),
       payments,
-      inventoryAlerts: inventory.filter((item) => Number(item.stock || 0) < Number(item.lowStockThreshold || 15)),
+      inventoryAlerts: inventory.filter((item) => Number(item.stock || 0) <= Number(item.lowStockThreshold || 5)),
     });
     return;
   }
@@ -101,7 +101,7 @@ const analytics = asyncHandler(async (req, res) => {
       sales: store.products.filter((product) => product.category === category.name).length,
     })),
     payments: store.payments,
-    inventoryAlerts: store.inventory.filter((item) => item.stock < item.lowStockThreshold),
+    inventoryAlerts: store.inventory.filter((item) => item.stock <= item.lowStockThreshold),
   });
 });
 

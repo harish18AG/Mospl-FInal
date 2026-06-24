@@ -71,6 +71,7 @@ class AdminDashboardScreen extends StatelessWidget {
           _adminLink(context, 'Orders', Icons.receipt_long_outlined, '/admin/orders'),
           _adminLink(context, 'Users', Icons.people_outline, '/admin/users'),
           _adminLink(context, 'Reviews', Icons.rate_review_outlined, '/admin/reviews'),
+          _adminLink(context, 'Returns', Icons.assignment_return_outlined, '/admin/returns'),
           _adminLink(context, 'Sales Charts', Icons.show_chart, '/admin/sales-charts'),
           const SectionHeader(title: 'Recent Orders'),
           if (state.orders.isEmpty)
@@ -98,8 +99,12 @@ class AdminDashboardScreen extends StatelessWidget {
 
   Widget _salesBarChart(List<int> revenueByDay) {
     final values = revenueByDay.isEmpty ? List.generate(7, (index) => (index + 2) * 1200) : revenueByDay;
+    final maxVal = values.fold<double>(0.0, (max, val) => val > max ? val.toDouble() : max);
+    final calculatedMaxY = maxVal == 0.0 ? 1000.0 : maxVal;
     return BarChart(
       BarChartData(
+        minY: 0,
+        maxY: calculatedMaxY,
         borderData: FlBorderData(show: false),
         gridData: const FlGridData(show: false),
         titlesData: const FlTitlesData(leftTitles: AxisTitles(), topTitles: AxisTitles(), rightTitles: AxisTitles()),
@@ -343,6 +348,7 @@ class _AdminOrderStatusCard extends StatelessWidget {
   static const _statusSteps = ['Confirmed', 'Packed', 'Shipped', 'Delivered'];
 
   Color _stepColor(BuildContext context, int stepIndex) {
+    if (order.status == 'Cancelled') return Colors.grey.shade300;
     final currentIndex = _statusSteps.indexOf(order.status);
     if (stepIndex <= currentIndex) return const Color(0xff12833b);
     return Colors.grey.shade300;
@@ -453,28 +459,43 @@ class _AdminOrderStatusCard extends StatelessWidget {
             Wrap(
               spacing: 8,
               children: [
-                if (currentIndex < 1)
+                if (order.status != 'Cancelled') ...[
+                  if (currentIndex < 1)
+                    _actionChip(
+                      context,
+                      label: '✓ Mark Packed',
+                      color: const Color(0xff1565c0),
+                      onTap: () => _updateStatus(context, 'Packed'),
+                    ),
+                  if (currentIndex < 2)
+                    _actionChip(
+                      context,
+                      label: '✓ Mark Shipped',
+                      color: const Color(0xff6a1b9a),
+                      onTap: () => _updateStatus(context, 'Shipped'),
+                    ),
+                  if (currentIndex < 3)
+                    _actionChip(
+                      context,
+                      label: '✓ Mark Delivered',
+                      color: const Color(0xff12833b),
+                      onTap: () => _updateStatus(context, 'Delivered'),
+                    ),
+                ],
+                if (order.status != 'Delivered' && order.status != 'Cancelled')
                   _actionChip(
                     context,
-                    label: '✓ Mark Packed',
-                    color: const Color(0xff1565c0),
-                    onTap: () => _updateStatus(context, 'Packed'),
+                    label: '✗ Cancel Order',
+                    color: const Color(0xffd32f2f),
+                    onTap: () => _updateStatus(context, 'Cancelled'),
                   ),
-                if (currentIndex < 2)
-                  _actionChip(
-                    context,
-                    label: '✓ Mark Shipped',
-                    color: const Color(0xff6a1b9a),
-                    onTap: () => _updateStatus(context, 'Shipped'),
+                if (order.status == 'Cancelled')
+                  const Chip(
+                    label: Text('Order Cancelled', style: TextStyle(color: Colors.white, fontSize: 12)),
+                    backgroundColor: Color(0xffd32f2f),
+                    padding: EdgeInsets.zero,
                   ),
-                if (currentIndex < 3)
-                  _actionChip(
-                    context,
-                    label: '✓ Mark Delivered',
-                    color: const Color(0xff12833b),
-                    onTap: () => _updateStatus(context, 'Delivered'),
-                  ),
-                if (currentIndex >= 3)
+                if (order.status == 'Delivered')
                   const Chip(
                     label: Text('Order Delivered', style: TextStyle(color: Colors.white, fontSize: 12)),
                     backgroundColor: Color(0xff12833b),
@@ -501,7 +522,6 @@ class _AdminOrderStatusCard extends StatelessWidget {
     context.read<AppState>().updateOrderStatus(
           orderId: order.orderId,
           status: status,
-          paymentStatus: order.paymentStatus,
         );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -520,7 +540,7 @@ class AdminInventoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final products = state.allProducts.where((product) => product.stock < 20).toList();
+    final products = state.allProducts.where((product) => product.stock <= 5).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Inventory'),
@@ -589,6 +609,8 @@ class AdminAnalyticsScreen extends StatelessWidget {
     final state = context.watch<AppState>();
     final revenue = state.revenueByDay.isEmpty ? List.generate(8, (index) => (index * index + 4) * 450) : state.revenueByDay;
     final performance = state.adminProductPerformance.isEmpty ? state.bestSellers : state.adminProductPerformance;
+    final maxRevenue = revenue.fold<double>(0.0, (max, val) => val > max ? val.toDouble() : max);
+    final calculatedMaxY = maxRevenue == 0.0 ? 1000.0 : maxRevenue;
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -607,6 +629,8 @@ class AdminAnalyticsScreen extends StatelessWidget {
             title: 'Revenue Trend',
             chart: LineChart(
               LineChartData(
+                minY: 0,
+                maxY: calculatedMaxY,
                 borderData: FlBorderData(show: false),
                 gridData: const FlGridData(show: false),
                 titlesData: const FlTitlesData(leftTitles: AxisTitles(), topTitles: AxisTitles(), rightTitles: AxisTitles()),
@@ -669,15 +693,59 @@ class AdminSimpleScreen extends StatelessWidget {
               ),
             )
           else
-            ...items.map(
-              (item) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(icon),
-                  title: Text(item.$1),
-                  subtitle: Text(item.$2),
-                ),
-              ),
+            ...items.asMap().entries.map(
+              (entry) {
+                final index = entry.key;
+                final item = entry.value;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: Icon(icon),
+                    title: Text(item.$1),
+                    subtitle: Text(item.$2),
+                    onTap: title.contains('Returns')
+                        ? () {
+                            final returnReq = state.returnRequests[index];
+                            final orderId = returnReq.orderId;
+                            final orders = state.orders.where((o) => o.orderId == orderId).toList();
+                            if (orders.isNotEmpty) {
+                              showDialog<void>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Review Return Request'),
+                                  content: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('Reason for Return:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 4),
+                                        Text(returnReq.reason, style: const TextStyle(fontSize: 14)),
+                                        const SizedBox(height: 12),
+                                        const Text('Order Details:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 6),
+                                        _AdminOrderStatusCard(order: orders.first),
+                                      ],
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Close'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Order $orderId not found locally.')),
+                              );
+                            }
+                          }
+                        : null,
+                  ),
+                );
+              },
             ),
         ],
       ),
@@ -693,6 +761,9 @@ class AdminSimpleScreen extends StatelessWidget {
     }
     if (title.contains('Notifications')) {
       return state.notifications.map((item) => (item.title, item.body)).toList();
+    }
+    if (title.contains('Returns')) {
+      return state.returnRequests.map((item) => ('Order ID: ${item.orderId}', 'Reason: ${item.reason} [${item.status}]')).toList();
     }
     return [
       ('Backend connected', 'Admin APIs are protected by JWT and admin role checks.'),

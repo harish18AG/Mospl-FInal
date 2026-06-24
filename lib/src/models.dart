@@ -582,13 +582,13 @@ class InventoryItem {
   final int lowStockThreshold;
   final DateTime lastRestockedAt;
 
-  bool get isLowStock => stock < lowStockThreshold;
+  bool get isLowStock => stock <= lowStockThreshold;
 
   factory InventoryItem.fromMap(Map<String, dynamic> map) {
     return InventoryItem(
       productId: (map['productId'] ?? '').toString(),
       stock: _int(map['stock']),
-      lowStockThreshold: _int(map['lowStockThreshold'], 15),
+      lowStockThreshold: _int(map['lowStockThreshold'], 5),
       lastRestockedAt: _date(map['lastRestockedAt'] ?? map['updatedAt']),
     );
   }

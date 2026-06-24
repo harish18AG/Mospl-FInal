@@ -203,6 +203,7 @@ class AppRouter {
       GoRoute(path: '/admin/orders', builder: (context, state) => const AdminGate(child: AdminOrdersScreen())),
       GoRoute(path: '/admin/users', builder: (context, state) => const AdminGate(child: AdminSimpleScreen(title: 'Admin Users', icon: Icons.people_outline))),
       GoRoute(path: '/admin/reviews', builder: (context, state) => const AdminGate(child: AdminSimpleScreen(title: 'Admin Reviews', icon: Icons.rate_review_outlined))),
+      GoRoute(path: '/admin/returns', builder: (context, state) => const AdminGate(child: AdminSimpleScreen(title: 'Admin Returns', icon: Icons.assignment_return_outlined))),
       GoRoute(path: '/admin/sales-charts', builder: (context, state) => const AdminGate(child: AdminAnalyticsScreen(title: 'Sales Charts'))),
     ],
   );

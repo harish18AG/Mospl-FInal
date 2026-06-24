@@ -4,11 +4,11 @@ const store = require('../services/store');
 
 const getReviews = asyncHandler(async (req, res) => {
   if (isFirebaseConfigured && db) {
-    let query = db.collection('reviews');
+    let query = db.collectionGroup('items');
     if (req.params.productId) query = query.where('productId', '==', req.params.productId);
     const snapshot = await query.get();
     const reviews = snapshot.docs
-      .map((doc) => ({ reviewId: doc.id, ...doc.data() }))
+      .map((doc) => ({ reviewId: doc.id, id: doc.id, ...doc.data() }))
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     res.json({ ok: true, reviews });
     return;
@@ -21,12 +21,14 @@ const getReviews = asyncHandler(async (req, res) => {
 
 const addReview = asyncHandler(async (req, res) => {
   if (isFirebaseConfigured && db) {
-    const ref = db.collection('reviews').doc();
+    const productId = req.body.productId;
+    const ref = db.collection('reviews').doc(productId).collection('items').doc();
     const review = {
+      id: ref.id,
       reviewId: ref.id,
       userId: req.user.uid,
       userName: req.user.email?.split('@')[0] || 'MOSPL Customer',
-      productId: req.body.productId,
+      productId: productId,
       rating: Number(req.body.rating || 5),
       comment: req.body.comment || '',
       createdAt: new Date().toISOString(),
@@ -35,8 +37,7 @@ const addReview = asyncHandler(async (req, res) => {
 
     // Update product rating and reviewCount in Firestore
     try {
-      const productId = req.body.productId;
-      const reviewsSnapshot = await db.collection('reviews').where('productId', '==', productId).get();
+      const reviewsSnapshot = await db.collection('reviews').doc(productId).collection('items').get();
       const count = reviewsSnapshot.docs.length;
       let avgRating = 0;
       if (count > 0) {

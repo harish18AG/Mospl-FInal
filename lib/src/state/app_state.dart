@@ -145,7 +145,7 @@ class AppState extends ChangeNotifier {
   int get unreadNotifications => notifications.where((item) => !item.read).length;
   int get totalRevenue => adminMetrics?.revenue ?? orders.fold(0, (total, order) => total + order.total);
   int get lowStockCount =>
-      adminMetrics?.lowStock ?? (inventory.isEmpty ? _allProducts.where((product) => product.stock < 15).length : inventory.where((item) => item.isLowStock).length);
+      adminMetrics?.lowStock ?? (inventory.isEmpty ? _allProducts.where((product) => product.stock <= 5).length : inventory.where((item) => item.isLowStock).length);
 
   Future<void> loadCatalogFromBackend() async {
     catalogLoading = true;
@@ -1032,6 +1032,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadReviews({bool notify = true, String? productId}) async {
+    if (_firebaseReady) return;
     try {
       final saved = await _apiClient.fetchReviews(productId: productId);
       if (productId == null) {
@@ -1064,7 +1065,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadReturns({bool notify = true}) async {
-    if (backendToken == null) return;
+    if (backendToken == null) {
+      await _loadFirestoreReturnRequests();
+      if (notify) notifyListeners();
+      return;
+    }
     try {
       final saved = await _apiClient.fetchReturns(backendToken!);
       returnRequests
@@ -1131,10 +1136,20 @@ class AppState extends ChangeNotifier {
             .map((doc) => PaymentRecord.fromMap(doc.data()))
             .toList();
 
+        // 6. Fetch return requests
+        final returnsSnapshot = await db.collection('returns').get();
+        final dbReturns = returnsSnapshot.docs
+            .map((doc) => ReturnRequest.fromMap({
+                  ...doc.data(),
+                  'returnId': doc.id,
+                }))
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
         // Compute metrics
         final revenue = dbOrders.fold<int>(0, (sum, order) => sum + order.total);
         final lowStock = dbInventory
-            .where((item) => item.stock < item.lowStockThreshold)
+            .where((item) => item.stock <= item.lowStockThreshold)
             .length;
 
         adminMetrics = AdminMetrics(
@@ -1161,6 +1176,10 @@ class AppState extends ChangeNotifier {
         payments
           ..clear()
           ..addAll(dbPayments);
+
+        returnRequests
+          ..clear()
+          ..addAll(dbReturns);
 
         adminProductPerformance
           ..clear()
@@ -1288,7 +1307,8 @@ class AppState extends ChangeNotifier {
 
   /// Reduces stock locally and in Firestore for every product in the order.
   void _decrementStockForOrder(AppOrder order) {
-    final db = _firebaseReady ? firestore.FirebaseFirestore.instance : null;
+    // Only persist directly to Firestore from the client if NOT using the backend API
+    final db = (_firebaseReady && backendToken == null) ? firestore.FirebaseFirestore.instance : null;
     for (final line in order.items) {
       final productId = line.product.productId;
       final qty = line.quantity;
@@ -1300,6 +1320,10 @@ class AppState extends ChangeNotifier {
         // Persist updated stock to Firestore
         db?.collection('products').doc(productId).set(
           {'stock': newStock, 'updatedAt': DateTime.now().toIso8601String()},
+          firestore.SetOptions(merge: true),
+        ).ignore();
+        db?.collection('inventory').doc(productId).set(
+          {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
           firestore.SetOptions(merge: true),
         ).ignore();
       }
@@ -1596,6 +1620,7 @@ class AppState extends ChangeNotifier {
         return;
       } catch (error) {
         catalogError = error.toString();
+        rethrow;
       }
     }
 
@@ -1620,21 +1645,71 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> createReturnRequest({required String orderId, required String reason}) async {
+    if (_firebaseUid != null) {
+      final uid = _firebaseUid!;
+      final docId = _uuid.v4();
+      final now = DateTime.now();
+      final request = ReturnRequest(
+        returnId: docId,
+        orderId: orderId,
+        reason: reason,
+        status: 'Requested',
+        createdAt: now,
+      );
+
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('returns')
+            .doc(docId)
+            .set({
+          'returnId': docId,
+          'orderId': orderId,
+          'userId': uid,
+          'reason': reason,
+          'status': 'Requested',
+          'createdAt': now.toIso8601String(),
+        });
+        
+        returnRequests.insert(0, request);
+        notifyListeners();
+
+        // Sync with backend API in the background if token is available
+        if (backendToken != null) {
+          _apiClient.createReturnRequest(
+            orderId: orderId,
+            reason: reason,
+            token: backendToken!,
+          ).ignore();
+        }
+        return;
+      } catch (error) {
+        catalogError = error.toString();
+        rethrow;
+      }
+    }
+
     if (backendToken == null) await _syncBackendFirebaseSession();
-    if (backendToken == null) throw StateError('Please sign in again before creating a return request.');
-    final request = await _apiClient.createReturnRequest(
-      orderId: orderId,
-      reason: reason,
-      token: backendToken!,
-    );
-    returnRequests.insert(0, request);
-    notifyListeners();
+    if (backendToken == null) {
+      throw StateError('Please sign in again before creating a return request.');
+    }
+    try {
+      final request = await _apiClient.createReturnRequest(
+        orderId: orderId,
+        reason: reason,
+        token: backendToken!,
+      );
+      returnRequests.insert(0, request);
+      notifyListeners();
+    } catch (error) {
+      catalogError = error.toString();
+      rethrow;
+    }
   }
 
   Future<void> updateInventoryStock({
     required String productId,
     required int stock,
-    int lowStockThreshold = 15,
+    int lowStockThreshold = 5,
   }) async {
     if (backendToken == null || currentUser?.isAdmin != true) return;
     final item = await _apiClient.updateInventory(
@@ -1653,23 +1728,29 @@ class AppState extends ChangeNotifier {
   Future<void> updateOrderStatus({
     required String orderId,
     required String status,
-    required String paymentStatus,
+    String? paymentStatus,
   }) async {
     if (currentUser?.isAdmin != true) return;
     // Update Firestore directly (works without backend token)
     if (_firebaseReady) {
       try {
+        final Map<String, dynamic> data = {
+          'status': status,
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+        if (paymentStatus != null) {
+          data['paymentStatus'] = paymentStatus;
+        }
         await firestore.FirebaseFirestore.instance
             .collection('orders')
             .doc(orderId)
-            .set({
-          'status': status,
-          'paymentStatus': paymentStatus,
-          'updatedAt': DateTime.now().toIso8601String(),
-        }, firestore.SetOptions(merge: true));
+            .set(data, firestore.SetOptions(merge: true));
         _replaceOrder(
           orderId,
-          (order) => order.copyWith(status: status, paymentStatus: paymentStatus),
+          (order) => order.copyWith(
+            status: status,
+            paymentStatus: paymentStatus ?? order.paymentStatus,
+          ),
         );
         notifyListeners();
         return;
@@ -1742,6 +1823,29 @@ class AppState extends ChangeNotifier {
         ..addAll(saved);
     } catch (error) {
       catalogError = 'Support ticket sync failed. $error';
+    }
+  }
+
+  Future<void> _loadFirestoreReturnRequests() async {
+    final uid = _firebaseUid;
+    if (uid == null) return;
+    try {
+      final snapshot = await firestore.FirebaseFirestore.instance
+          .collection('returns')
+          .where('userId', isEqualTo: uid)
+          .get();
+      final saved = snapshot.docs
+          .map((doc) => ReturnRequest.fromMap({
+                ...doc.data(),
+                'returnId': doc.id,
+              }))
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      returnRequests
+        ..clear()
+        ..addAll(saved);
+    } catch (error) {
+      catalogError = 'Return request sync failed. $error';
     }
   }
 

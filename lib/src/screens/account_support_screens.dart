@@ -694,8 +694,23 @@ class RatingsScreen extends StatelessWidget {
   }
 }
 
-class ReturnsScreen extends StatelessWidget {
+class ReturnsScreen extends StatefulWidget {
   const ReturnsScreen({super.key});
+
+  @override
+  State<ReturnsScreen> createState() => _ReturnsScreenState();
+}
+
+class _ReturnsScreenState extends State<ReturnsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AppState>().loadReturns();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
