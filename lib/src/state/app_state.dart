@@ -1365,12 +1365,10 @@ class AppState extends ChangeNotifier {
             {'stock': newStock, 'updatedAt': DateTime.now().toIso8601String()},
             firestore.SetOptions(merge: true),
           ).ignore();
-          if (currentUser?.isAdmin == true) {
-            db.collection('inventory').doc(productId).set(
-              {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
-              firestore.SetOptions(merge: true),
-            ).ignore();
-          }
+          db.collection('inventory').doc(productId).set(
+            {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
+            firestore.SetOptions(merge: true),
+          ).ignore();
         }
       }
     }
@@ -1758,16 +1756,27 @@ class AppState extends ChangeNotifier {
     int lowStockThreshold = 5,
   }) async {
     final clampedStock = stock.clamp(0, 30);
-    if (backendToken == null || currentUser?.isAdmin != true) return;
-    final item = await _apiClient.updateInventory(
+    final timestamp = DateTime.now().toIso8601String();
+
+    // 1. Update local state immediately
+    final index = _allProducts.indexWhere((product) => product.productId == productId);
+    if (index >= 0) {
+      _allProducts[index] = _allProducts[index].copyWith(stock: clampedStock, updatedAt: DateTime.now());
+    }
+
+    final updatedItem = InventoryItem(
       productId: productId,
       stock: clampedStock,
       lowStockThreshold: lowStockThreshold,
-      token: backendToken!,
+      lastRestockedAt: DateTime.parse(timestamp),
     );
+    inventory.removeWhere((entry) => entry.productId == productId);
+    inventory.add(updatedItem);
+    notifyListeners();
+
+    // 2. Persist to Firebase directly (Firebase is the primary stock db)
     if (_firebaseReady) {
       try {
-        final timestamp = DateTime.now().toIso8601String();
         await firestore.FirebaseFirestore.instance
             .collection('products')
             .doc(productId)
@@ -1779,19 +1788,31 @@ class AppState extends ChangeNotifier {
             .collection('inventory')
             .doc(productId)
             .set({
+              'productId': productId,
               'stock': clampedStock,
               'lowStockThreshold': lowStockThreshold,
               'lastRestockedAt': timestamp,
             }, firestore.SetOptions(merge: true));
       } catch (error) {
-        catalogError = 'Stock updated locally but Firestore write failed: $error';
+        catalogError = 'Firestore write failed: $error';
       }
     }
-    inventory.removeWhere((entry) => entry.productId == productId);
-    inventory.add(item);
-    final index = _allProducts.indexWhere((product) => product.productId == productId);
-    if (index >= 0) _allProducts[index] = _allProducts[index].copyWith(stock: clampedStock, updatedAt: DateTime.now());
-    notifyListeners();
+
+    // 3. Fire-and-forget sync to Render backend to keep in-memory sync'd
+    if (backendToken != null && currentUser?.isAdmin == true) {
+      _apiClient.updateInventory(
+        productId: productId,
+        stock: clampedStock,
+        lowStockThreshold: lowStockThreshold,
+        token: backendToken!,
+      ).then((item) {
+        inventory.removeWhere((entry) => entry.productId == productId);
+        inventory.add(item);
+        notifyListeners();
+      }).catchError((_) {
+        // Silently ignore Render backend failures; Firebase is our source of truth
+      });
+    }
   }
 
   Future<void> updateOrderStatus({
