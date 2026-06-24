@@ -2344,6 +2344,15 @@ class AppState extends ChangeNotifier {
     final clean = email.trim();
     final validEmail = RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(clean);
     if (!validEmail) return 'Enter a valid email address.';
+    if (isSignup) {
+      final parts = clean.split('@');
+      if (parts.length == 2) {
+        final domain = parts[1].toLowerCase();
+        if (domain != 'email.com' && domain != 'gmail.com') {
+          return 'You entered invalid email or gmail';
+        }
+      }
+    }
     if (password.length < 6) return 'Password must be at least 6 characters.';
     if (isSignup && !RegExp(r'[A-Za-z]').hasMatch(password)) {
       return 'Password should include letters and numbers.';

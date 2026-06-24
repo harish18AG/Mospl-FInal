@@ -26,6 +26,10 @@ async function resolveRole({ uid, email, claims }) {
 
 async function register({ name, email, password }) {
   const cleanEmail = email.trim().toLowerCase();
+  const domain = cleanEmail.split('@')[1];
+  if (domain !== 'email.com' && domain !== 'gmail.com') {
+    throw httpError(400, 'You entered invalid email or gmail');
+  }
   let user;
   if (isFirebaseConfigured && auth) {
     let firebaseUser;
