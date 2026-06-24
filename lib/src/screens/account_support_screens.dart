@@ -109,7 +109,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         children: [
           TextField(controller: _name, decoration: const InputDecoration(prefixIcon: Icon(Icons.person_outline), labelText: 'Name')),
           const SizedBox(height: 12),
-          TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(prefixIcon: Icon(Icons.email_outlined), labelText: 'Email')),
+          TextField(
+            controller: _email,
+            enabled: false,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.email_outlined),
+              labelText: 'Email',
+            ),
+          ),
           const SizedBox(height: 18),
           ElevatedButton(
             onPressed: () async {
