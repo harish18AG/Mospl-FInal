@@ -420,20 +420,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => context.read<AppState>().addToCart(product),
-                  icon: const Icon(Icons.add_shopping_cart),
-                  label: const Text('Add to Cart'),
+                  onPressed: product.stock <= 0
+                      ? null
+                      : () => context.read<AppState>().addToCart(product),
+                  icon: Icon(product.stock <= 0
+                      ? Icons.remove_shopping_cart
+                      : Icons.add_shopping_cart),
+                  label: Text(product.stock <= 0 ? 'Sold Out' : 'Add to Cart'),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    context.read<AppState>().addToCart(product);
-                    context.push('/checkout');
-                  },
-                  icon: const Icon(Icons.flash_on),
-                  label: const Text('Buy Now'),
+                  onPressed: product.stock <= 0
+                      ? null
+                      : () {
+                          context.read<AppState>().addToCart(product);
+                          context.push('/checkout');
+                        },
+                  icon: Icon(product.stock <= 0 ? Icons.remove_shopping_cart : Icons.flash_on),
+                  label: Text(product.stock <= 0 ? 'Sold Out' : 'Buy Now'),
                 ),
               ),
             ],
@@ -517,6 +523,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     OfferBadge(text: 'Razorpay Test Mode'),
                   ],
                 ),
+                const SizedBox(height: 18),
+                _buildStockBanner(context, product.stock),
                 const SizedBox(height: 18),
                 Text(product.description),
                 const SizedBox(height: 12),
@@ -636,6 +644,88 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open source listing.')),
+      );
+    }
+  }
+
+  Widget _buildStockBanner(BuildContext context, int stock) {
+    if (stock <= 0) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          border: Border.all(color: Colors.red.shade200),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'This product is sold out. Please choose another product.',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (stock <= 5) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          border: Border.all(color: Colors.orange.shade200),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Only $stock items left in stock! Hurry up!',
+                style: TextStyle(
+                  color: Colors.orange.shade900,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          border: Border.all(color: Colors.green.shade200),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green.shade700, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'In Stock ($stock available)',
+                style: TextStyle(
+                  color: Colors.green.shade800,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
   }

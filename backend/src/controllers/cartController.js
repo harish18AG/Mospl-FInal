@@ -38,8 +38,17 @@ const addItem = asyncHandler(async (req, res) => {
   if (!product) throw httpError(404, 'Product not found.');
   const cart = isFirebaseConfigured && db ? await getFirestoreCart(req.user.uid) : getCart(req.user.uid);
   const existing = cart.find((item) => item.productId === product.productId);
-  if (existing) existing.quantity += Number(req.body.quantity || 1);
-  else cart.push({ productId: product.productId, quantity: Number(req.body.quantity || 1), price: product.price, product });
+
+  const currentQuantity = existing ? existing.quantity : 0;
+  const requestedQuantity = Number(req.body.quantity || 1);
+  const targetQuantity = currentQuantity + requestedQuantity;
+
+  if (targetQuantity > product.stock) {
+    throw httpError(400, `Cannot add more. Only ${product.stock} items are available in stock.`);
+  }
+
+  if (existing) existing.quantity = targetQuantity;
+  else cart.push({ productId: product.productId, quantity: targetQuantity, price: product.price, product });
   if (isFirebaseConfigured && db) {
     await saveFirestoreCart(req.user.uid, cart);
   }
@@ -50,7 +59,18 @@ const updateItem = asyncHandler(async (req, res) => {
   const cart = isFirebaseConfigured && db ? await getFirestoreCart(req.user.uid) : getCart(req.user.uid);
   const item = cart.find((line) => line.productId === req.params.productId);
   if (!item) throw httpError(404, 'Cart item not found.');
-  item.quantity = Number(req.body.quantity || item.quantity);
+
+  const product = isFirebaseConfigured && db
+    ? await productService.getProductById(req.params.productId)
+    : store.products.find((p) => p.productId === req.params.productId);
+  if (!product) throw httpError(404, 'Product not found.');
+
+  const requestedQuantity = Number(req.body.quantity || item.quantity);
+  if (requestedQuantity > product.stock) {
+    throw httpError(400, `Cannot update quantity. Only ${product.stock} items are available in stock.`);
+  }
+
+  item.quantity = requestedQuantity;
   const updated = cart.filter((line) => line.quantity > 0);
   if (isFirebaseConfigured && db) await saveFirestoreCart(req.user.uid, updated);
   res.json({ ok: true, items: updated });

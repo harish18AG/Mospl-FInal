@@ -236,6 +236,30 @@ class ProductCard extends StatelessWidget {
                     heroTag: 'product-${product.productId}',
                   ),
                 ),
+                if (product.stock <= 0)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade700,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'SOLD OUT',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   left: 8,
                   top: 8,
@@ -295,8 +319,15 @@ class ProductCard extends StatelessWidget {
                       ),
                       IconButton.filled(
                         visualDensity: VisualDensity.compact,
-                        onPressed: () => context.read<AppState>().addToCart(product),
-                        icon: const Icon(Icons.add_shopping_cart, size: 18),
+                        onPressed: product.stock <= 0
+                            ? null
+                            : () => context.read<AppState>().addToCart(product),
+                        icon: Icon(
+                          product.stock <= 0
+                              ? Icons.remove_shopping_cart
+                              : Icons.add_shopping_cart,
+                          size: 18,
+                        ),
                       ),
                     ],
                   ),
@@ -505,13 +536,16 @@ class QuantityStepper extends StatelessWidget {
     super.key,
     required this.quantity,
     required this.onChanged,
+    this.max,
   });
 
   final int quantity;
   final ValueChanged<int> onChanged;
+  final int? max;
 
   @override
   Widget build(BuildContext context) {
+    final bool disableAdd = max != null && quantity >= max!;
     return Container(
       height: 34,
       decoration: BoxDecoration(
@@ -536,8 +570,8 @@ class QuantityStepper extends StatelessWidget {
           ),
           IconButton(
             visualDensity: VisualDensity.compact,
-            onPressed: () => onChanged(quantity + 1),
-            icon: const Icon(Icons.add, size: 16),
+            onPressed: disableAdd ? null : () => onChanged(quantity + 1),
+            icon: Icon(Icons.add, size: 16, color: disableAdd ? Colors.grey : null),
           ),
         ],
       ),

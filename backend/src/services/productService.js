@@ -93,9 +93,21 @@ async function createProduct(payload) {
   const product = normalizeProduct(payload);
   if (!isFirebaseConfigured) {
     store.products.unshift(product);
+    store.inventory.push({
+      productId: product.productId,
+      stock: product.stock,
+      lowStockThreshold: 5,
+      lastRestockedAt: product.updatedAt,
+    });
     return product;
   }
   await db.collection('products').doc(product.productId).set(product);
+  await db.collection('inventory').doc(product.productId).set({
+    productId: product.productId,
+    stock: product.stock,
+    lowStockThreshold: 5,
+    lastRestockedAt: product.updatedAt,
+  });
   return product;
 }
 
@@ -106,9 +118,26 @@ async function updateProduct(productId, payload) {
   if (!isFirebaseConfigured) {
     const index = store.products.findIndex((item) => item.productId === productId);
     store.products[index] = updated;
+    const invIndex = store.inventory.findIndex((item) => item.productId === productId);
+    if (invIndex >= 0) {
+      store.inventory[invIndex].stock = updated.stock;
+      store.inventory[invIndex].lastRestockedAt = updated.updatedAt;
+    } else {
+      store.inventory.push({
+        productId,
+        stock: updated.stock,
+        lowStockThreshold: 5,
+        lastRestockedAt: updated.updatedAt,
+      });
+    }
     return updated;
   }
   await db.collection('products').doc(productId).set(updated, { merge: true });
+  await db.collection('inventory').doc(productId).set({
+    productId,
+    stock: updated.stock,
+    lastRestockedAt: updated.updatedAt,
+  }, { merge: true });
   return updated;
 }
 

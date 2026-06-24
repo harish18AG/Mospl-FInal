@@ -24,11 +24,11 @@ const update = asyncHandler(async (req, res) => {
   if (isFirebaseConfigured && db) {
     const ref = db.collection('inventory').doc(req.params.productId);
     const existing = await ref.get();
-    if (!existing.exists) throw httpError(404, 'Inventory record not found.');
+    const existingData = existing.exists ? existing.data() : {};
     const inventory = {
       productId: req.params.productId,
-      stock: Number(req.body.stock ?? existing.data().stock),
-      lowStockThreshold: Number(req.body.lowStockThreshold ?? existing.data().lowStockThreshold ?? 5),
+      stock: Number(req.body.stock !== undefined ? req.body.stock : (existingData.stock ?? 0)),
+      lowStockThreshold: Number(req.body.lowStockThreshold !== undefined ? req.body.lowStockThreshold : (existingData.lowStockThreshold ?? 5)),
       lastRestockedAt: new Date().toISOString(),
     };
     await ref.set(inventory, { merge: true });
@@ -39,10 +39,18 @@ const update = asyncHandler(async (req, res) => {
     res.json({ ok: true, inventory });
     return;
   }
-  const item = store.inventory.find((entry) => entry.productId === req.params.productId);
-  if (!item) throw httpError(404, 'Inventory record not found.');
-  item.stock = Number(req.body.stock ?? item.stock);
-  item.lowStockThreshold = Number(req.body.lowStockThreshold ?? item.lowStockThreshold);
+  let item = store.inventory.find((entry) => entry.productId === req.params.productId);
+  if (!item) {
+    item = {
+      productId: req.params.productId,
+      stock: 0,
+      lowStockThreshold: 5,
+      lastRestockedAt: new Date().toISOString(),
+    };
+    store.inventory.push(item);
+  }
+  item.stock = Number(req.body.stock !== undefined ? req.body.stock : item.stock);
+  item.lowStockThreshold = Number(req.body.lowStockThreshold !== undefined ? req.body.lowStockThreshold : item.lowStockThreshold);
   item.lastRestockedAt = new Date().toISOString();
   const product = store.products.find((entry) => entry.productId === req.params.productId);
   if (product) product.stock = item.stock;

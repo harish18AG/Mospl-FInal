@@ -675,6 +675,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> addToCart(Product product, {int quantity = 1}) async {
     final index = cart.indexWhere((line) => line.product.productId == product.productId);
+    final currentQty = index >= 0 ? cart[index].quantity : 0;
+    if (currentQty + quantity > product.stock) {
+      _pushNotification('Out of Stock', 'Cannot add more items. Only ${product.stock} available.');
+      notifyListeners();
+      return;
+    }
     if (index >= 0) {
       cart[index] = cart[index].copyWith(quantity: cart[index].quantity + quantity);
     } else {
@@ -707,6 +713,12 @@ class AppState extends ChangeNotifier {
   Future<void> setCartQuantity(String productId, int quantity) async {
     final index = cart.indexWhere((line) => line.product.productId == productId);
     if (index < 0) return;
+    final product = cart[index].product;
+    if (quantity > product.stock) {
+      _pushNotification('Out of Stock', 'Cannot set quantity to $quantity. Only ${product.stock} available.');
+      notifyListeners();
+      return;
+    }
     if (quantity <= 0) {
       cart.removeAt(index);
     } else {
@@ -1745,10 +1757,11 @@ class AppState extends ChangeNotifier {
     required int stock,
     int lowStockThreshold = 5,
   }) async {
+    final clampedStock = stock.clamp(0, 30);
     if (backendToken == null || currentUser?.isAdmin != true) return;
     final item = await _apiClient.updateInventory(
       productId: productId,
-      stock: stock,
+      stock: clampedStock,
       lowStockThreshold: lowStockThreshold,
       token: backendToken!,
     );
@@ -1759,14 +1772,14 @@ class AppState extends ChangeNotifier {
             .collection('products')
             .doc(productId)
             .set({
-              'stock': stock,
+              'stock': clampedStock,
               'updatedAt': timestamp,
             }, firestore.SetOptions(merge: true));
         await firestore.FirebaseFirestore.instance
             .collection('inventory')
             .doc(productId)
             .set({
-              'stock': stock,
+              'stock': clampedStock,
               'lowStockThreshold': lowStockThreshold,
               'lastRestockedAt': timestamp,
             }, firestore.SetOptions(merge: true));
@@ -1777,7 +1790,7 @@ class AppState extends ChangeNotifier {
     inventory.removeWhere((entry) => entry.productId == productId);
     inventory.add(item);
     final index = _allProducts.indexWhere((product) => product.productId == productId);
-    if (index >= 0) _allProducts[index] = _allProducts[index].copyWith(stock: stock, updatedAt: DateTime.now());
+    if (index >= 0) _allProducts[index] = _allProducts[index].copyWith(stock: clampedStock, updatedAt: DateTime.now());
     notifyListeners();
   }
 
@@ -2042,14 +2055,15 @@ class AppState extends ChangeNotifier {
       );
 
   Future<void> upsertProduct(Product product) async {
-    final index = _allProducts.indexWhere((item) => item.productId == product.productId);
-    var productToStore = product;
+    final clampedProduct = product.copyWith(stock: product.stock.clamp(0, 30));
+    final index = _allProducts.indexWhere((item) => item.productId == clampedProduct.productId);
+    var productToStore = clampedProduct;
     // Try backend API first
     if (currentUser?.isAdmin == true && backendToken != null) {
       try {
         productToStore = index >= 0
-            ? await _apiClient.updateProduct(product, backendToken!)
-            : await _apiClient.createProduct(product, backendToken!);
+            ? await _apiClient.updateProduct(clampedProduct, backendToken!)
+            : await _apiClient.createProduct(clampedProduct, backendToken!);
       } catch (error) {
         catalogError = error.toString();
       }
@@ -2063,14 +2077,24 @@ class AppState extends ChangeNotifier {
             .collection('products')
             .doc(productToStore.productId)
             .set(payload, firestore.SetOptions(merge: true));
+        await firestore.FirebaseFirestore.instance
+            .collection('inventory')
+            .doc(productToStore.productId)
+            .set({
+              'productId': productToStore.productId,
+              'stock': productToStore.stock,
+              'lowStockThreshold': 5,
+              'lastRestockedAt': payload['updatedAt'],
+            }, firestore.SetOptions(merge: true));
       } catch (error) {
         catalogError = 'Product saved locally but Firestore write failed: $error';
       }
     }
+    final productToStoreClamped = productToStore.copyWith(stock: productToStore.stock.clamp(0, 30));
     if (index >= 0) {
-      _allProducts[index] = productToStore.copyWith(updatedAt: DateTime.now());
+      _allProducts[index] = productToStoreClamped.copyWith(updatedAt: DateTime.now());
     } else {
-      _allProducts.insert(0, productToStore);
+      _allProducts.insert(0, productToStoreClamped);
     }
     categories = buildCategories(_allProducts);
     notifyListeners();

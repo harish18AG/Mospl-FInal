@@ -80,6 +80,7 @@ class _CartLineCard extends StatelessWidget {
                     children: [
                       QuantityStepper(
                         quantity: line.quantity,
+                        max: line.product.stock,
                         onChanged: (qty) => context.read<AppState>().setCartQuantity(line.product.productId, qty),
                       ),
                       const Spacer(),

@@ -203,9 +203,10 @@ class AdminProductsScreen extends StatelessWidget {
           TextButton(onPressed: () => dialogContext.pop(), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
+              final newStock = (int.tryParse(stock.text) ?? product.stock).clamp(0, 30);
               await context.read<AppState>().updateInventoryStock(
                     productId: product.productId,
-                    stock: int.tryParse(stock.text) ?? product.stock,
+                    stock: newStock,
                   );
               if (dialogContext.mounted) dialogContext.pop();
             },
@@ -296,7 +297,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 price: price,
                 oldPrice: oldPrice,
                 discountPercentage: oldPrice > 0 ? ((oldPrice - price) * 100 / oldPrice).round() : 0,
-                stock: int.tryParse(_stock.text) ?? sample.stock,
+                stock: (int.tryParse(_stock.text) ?? sample.stock).clamp(0, 30),
                 shortDescription: _description.text.trim(),
                 description: _description.text.trim(),
                 sourceUrl: _sourceUrl.text.trim().isEmpty ? 'Not Specified' : _sourceUrl.text.trim(),
