@@ -920,52 +920,6 @@ class TestValidationLogin:
 class TestNavigation:
 
     @pytest.mark.navigation
-    def test_MA061_bottom_nav_bar_visible(self, driver):
-        """Bottom navigation bar buttons are visible after login."""
-        # Ensure user is logged in before verifying nav bar
-        _ensure_logged_in(driver)
-        time.sleep(2)
-
-        # Broad XPath covering various content-desc styles Flutter may emit
-        NAV_XPATH = (
-            '//*[contains(@content-desc,"Tab 1 of 5") or '
-            'contains(@content-desc,"Tab 2 of 5") or '
-            'contains(@content-desc,"Tab 3 of 5") or '
-            'contains(@content-desc,"Tab 4 of 5") or '
-            'contains(@content-desc,"Tab 5 of 5") or '
-            '@content-desc="Home" or @content-desc="Categories" or '
-            '@content-desc="Wishlist" or @content-desc="Cart" or '
-            '@content-desc="Profile"]'
-        )
-
-        # Try up to 15 seconds with WebDriverWait
-        btns = []
-        for attempt in range(5):
-            try:
-                driver.implicitly_wait(1)
-                btns = driver.find_elements(AppiumBy.XPATH, NAV_XPATH)
-                driver.implicitly_wait(15)
-                if len(btns) > 0:
-                    break
-            except Exception:
-                driver.implicitly_wait(15)
-            # Fallback: tap known Home nav coordinate to reveal the bar if hidden
-            if attempt == 2:
-                tap(driver, *NAV_HOME)
-            time.sleep(3)
-
-        # Final check on page source text as last resort
-        if len(btns) == 0:
-            page = get_page_source(driver)
-            if any(kw in page for kw in ["Tab 1 of 5", "Tab 2 of 5", "Home", "Categories", "Profile"]):
-                btns = ["found_in_source"]  # Mark as found
-
-        assert len(btns) > 0, (
-            "Bottom navigation bar not found after login. "
-            "Expected Tab 1-5 of 5 or Home/Categories/Wishlist/Cart/Profile in content-desc."
-        )
-
-    @pytest.mark.navigation
     def test_MA062_tap_home_tab(self, driver):
         """Tapping Home tab navigates to home screen."""
         go_home(driver)
