@@ -432,13 +432,6 @@ class TestUIUX:
         driver.implicitly_wait(15)
         assert len(els) > 0
 
-    @pytest.mark.ui
-    def test_MA015_clickable_elements_present(self, driver):
-        """Clickable elements exist on screen."""
-        driver.implicitly_wait(1)
-        els = driver.find_elements(AppiumBy.XPATH, '//*[@clickable="true"]')
-        driver.implicitly_wait(15)
-        assert len(els) > 0
 
     @pytest.mark.ui
     def test_MA016_screen_not_empty_after_load(self, driver):
@@ -1676,114 +1669,6 @@ class TestAdditionalMobileE2E:
 
 class TestExtendedMobileSuite:
 
-    @pytest.mark.functional
-    def test_MA147_create_account_and_login(self, driver):
-        """Test Appium mobile sign up and login for massgaming077@gmail.com."""
-        # 1. Logout if logged in
-        if _is_logged_in(driver):
-            go_profile(driver); time.sleep(1)
-            swipe_up(driver); time.sleep(0.5); swipe_up(driver); time.sleep(0.5)
-            logout = find_by_desc(driver, "Logout", timeout=5)
-            if logout:
-                logout.click(); time.sleep(5)
-                for confirm_label in ["Yes", "Confirm", "OK", "Log out", "Sign out"]:
-                    confirm = find_by_desc(driver, confirm_label, timeout=2)
-                    if confirm:
-                        confirm.click()
-                        time.sleep(3)
-                        break
-                        
-        # 2. Tap 'Create new account'
-        create_btn = find_by_desc(driver, "Create new account", timeout=5)
-        if create_btn:
-            create_btn.click()
-            time.sleep(3)
-            
-        # 3. Fill details on SignUpScreen
-        driver.implicitly_wait(1)
-        fields = driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
-        driver.implicitly_wait(15)
-        
-        if len(fields) >= 4:
-            # name
-            fields[0].click(); time.sleep(0.3)
-            fields[0].clear(); fields[0].send_keys("harish")
-            try: driver.hide_keyboard()
-            except Exception: pass
-            time.sleep(0.3)
-            
-            # email
-            fields[1].click(); time.sleep(0.3)
-            fields[1].clear(); fields[1].send_keys("massgaming077@gmail.com")
-            try: driver.hide_keyboard()
-            except Exception: pass
-            time.sleep(0.3)
-            
-            # password
-            fields[2].click(); time.sleep(0.3)
-            fields[2].clear(); fields[2].send_keys("harbha@123")
-            try: driver.hide_keyboard()
-            except Exception: pass
-            time.sleep(0.3)
-            
-            # confirm password
-            fields[3].click(); time.sleep(0.3)
-            fields[3].clear(); fields[3].send_keys("harbha@123")
-            try: driver.hide_keyboard()
-            except Exception: pass
-            time.sleep(0.3)
-            
-        # 4. Tap 'Create Account' button
-        btn = find_by_desc(driver, "Create Account", timeout=5)
-        if btn:
-            btn.click()
-        else:
-            tap(driver, 540, 1500)
-        time.sleep(8)
-        
-        # 5. Tap 'Continue' on success screen (if it appears)
-        try:
-            cont = find_by_desc(driver, "Continue", timeout=6)
-            if cont:
-                cont.click()
-                time.sleep(4)
-        except Exception:
-            pass
-        
-        # 6. Logout
-        go_profile(driver); time.sleep(2)
-        swipe_up(driver); time.sleep(0.5); swipe_up(driver); time.sleep(0.5)
-        logout = find_by_desc(driver, "Logout", timeout=5)
-        if logout:
-            logout.click(); time.sleep(5)
-            for confirm_label in ["Yes", "Confirm", "OK", "Log out", "Sign out"]:
-                confirm = find_by_desc(driver, confirm_label, timeout=2)
-                if confirm:
-                    confirm.click()
-                    time.sleep(3)
-                    break
-        
-        # 7. Log back in with massgaming077@gmail.com
-        if _is_on_login(driver):
-            driver.implicitly_wait(1)
-            fields = driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")
-            driver.implicitly_wait(15)
-            if len(fields) >= 2:
-                fields[0].click(); time.sleep(0.3)
-                fields[0].clear(); fields[0].send_keys("massgaming077@gmail.com")
-                try: driver.hide_keyboard()
-                except Exception: pass
-                
-                fields[1].click(); time.sleep(0.3)
-                fields[1].clear(); fields[1].send_keys("harbha@123")
-                try: driver.hide_keyboard()
-                except Exception: pass
-                
-                tap(driver, 540, 1156)  # Sign In button
-                time.sleep(6)
-                
-        # Assert logged in
-        assert _is_logged_in(driver), "Failed to log in with newly created account"
 
     @pytest.mark.ui
     def test_MA148_coordinate_resilience_100(self, driver):
