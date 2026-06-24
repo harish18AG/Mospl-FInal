@@ -1,31 +1,42 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { db, isFirebaseConfigured } = require('../config/firebase');
-const chatbotService = require('../services/chatbotService');
 const productService = require('../services/productService');
+const geminiService = require('../services/geminiService');
 const store = require('../services/store');
 
 const sendMessage = asyncHandler(async (req, res) => {
+  const products = isFirebaseConfigured && db
+    ? await productService.getAllProducts({})
+    : store.products;
+
+  // 1. Load context history (last 10 messages)
+  let history = [];
   if (isFirebaseConfigured && db) {
-    const products = await productService.getAllProducts({});
-    const clean = String(req.body.text || '').toLowerCase();
-    let response = 'Tell me what you are shopping for: men wallet, coat wallet, hand woven belt, passport holder, or women wallet.';
-    if (clean.includes('order') || clean.includes('track')) {
-      response = 'Open My Orders to view confirmation, payment status, and delivery tracking.';
-    } else if (clean.includes('return')) {
-      response = 'MOSPL supports 7 day return or replacement for unused products with original tags.';
-    } else if (clean.includes('gift')) {
-      response = 'I recommend MOSPL wallets, passport holders, hand woven belts, and women wallets from the current catalog.';
-    } else if (clean.includes('wallet') || clean.includes('belt') || clean.includes('passport')) {
-      response = 'Here are matching MOSPL leather products with 30% off, free shipping, and 5 day delivery.';
-    }
-    const recommendations = products
-      .filter((product) => {
-        const haystack = `${product.name} ${product.category} ${product.subcategory}`.toLowerCase();
-        return clean.split(/\s+/).some((word) => word.length > 3 && haystack.includes(word));
-      })
-      .slice(0, 4)
-      .map((product) => product.productId);
-    const now = new Date().toISOString();
+    const snapshot = await db.collection('chatbot_messages')
+      .where('userId', '==', req.user.uid)
+      .get();
+    history = snapshot.docs
+      .map(doc => doc.data())
+      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+      .slice(-10);
+  } else {
+    history = store.chatbotMessages
+      .filter(msg => msg.userId === req.user.uid)
+      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+      .slice(-10);
+  }
+
+  // 2. Generate chat response from Gemini LLM
+  const geminiResponse = await geminiService.generateChatResponse({
+    text: req.body.text || '',
+    history,
+    products
+  });
+
+  const now = new Date().toISOString();
+
+  // 3. Persist messages and reply
+  if (isFirebaseConfigured && db) {
     const userRef = db.collection('chatbot_messages').doc();
     const botRef = db.collection('chatbot_messages').doc();
     const userMessage = {
@@ -38,9 +49,9 @@ const sendMessage = asyncHandler(async (req, res) => {
     const botMessage = {
       messageId: botRef.id,
       userId: req.user.uid,
-      text: response,
+      text: geminiResponse.text,
       isUser: false,
-      recommendedProductIds: recommendations.length ? recommendations : products.slice(0, 4).map((product) => product.productId),
+      recommendedProductIds: geminiResponse.recommendedProductIds,
       createdAt: now,
     };
     const batch = db.batch();
@@ -50,8 +61,24 @@ const sendMessage = asyncHandler(async (req, res) => {
     res.status(201).json({ ok: true, message: botMessage });
     return;
   }
-  const message = chatbotService.replyToMessage({ userId: req.user.uid, text: req.body.text });
-  res.status(201).json({ ok: true, message });
+
+  const userMessage = {
+    messageId: `msg_${Date.now()}_user`,
+    userId: req.user.uid,
+    text: req.body.text,
+    isUser: true,
+    createdAt: now,
+  };
+  const botMessage = {
+    messageId: `msg_${Date.now()}_bot`,
+    userId: req.user.uid,
+    text: geminiResponse.text,
+    isUser: false,
+    recommendedProductIds: geminiResponse.recommendedProductIds,
+    createdAt: now,
+  };
+  store.chatbotMessages.push(userMessage, botMessage);
+  res.status(201).json({ ok: true, message: botMessage });
 });
 
 const history = asyncHandler(async (req, res) => {
