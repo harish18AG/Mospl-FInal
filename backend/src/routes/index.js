@@ -17,5 +17,6 @@ router.use('/inventory', require('./inventoryRoutes'));
 router.use('/returns', require('./returnRoutes'));
 router.use('/support-tickets', require('./supportTicketRoutes'));
 router.use('/admin', require('./adminRoutes'));
+router.use('/daily-offers', require('./dailyOfferRoutes'));
 
 module.exports = router;

@@ -25,9 +25,11 @@ const update = asyncHandler(async (req, res) => {
     const ref = db.collection('inventory').doc(req.params.productId);
     const existing = await ref.get();
     const existingData = existing.exists ? existing.data() : {};
+    let stockVal = Number(req.body.stock !== undefined ? req.body.stock : (existingData.stock ?? 0));
+    stockVal = Math.min(30, Math.max(0, stockVal));
     const inventory = {
       productId: req.params.productId,
-      stock: Number(req.body.stock !== undefined ? req.body.stock : (existingData.stock ?? 0)),
+      stock: stockVal,
       lowStockThreshold: Number(req.body.lowStockThreshold !== undefined ? req.body.lowStockThreshold : (existingData.lowStockThreshold ?? 5)),
       lastRestockedAt: new Date().toISOString(),
     };
@@ -49,7 +51,9 @@ const update = asyncHandler(async (req, res) => {
     };
     store.inventory.push(item);
   }
-  item.stock = Number(req.body.stock !== undefined ? req.body.stock : item.stock);
+  let stockVal = Number(req.body.stock !== undefined ? req.body.stock : item.stock);
+  stockVal = Math.min(30, Math.max(0, stockVal));
+  item.stock = stockVal;
   item.lowStockThreshold = Number(req.body.lowStockThreshold !== undefined ? req.body.lowStockThreshold : item.lowStockThreshold);
   item.lastRestockedAt = new Date().toISOString();
   const product = store.products.find((entry) => entry.productId === req.params.productId);

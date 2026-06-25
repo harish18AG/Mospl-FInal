@@ -1416,7 +1416,10 @@ class _ComparisonResult extends StatelessWidget {
                     width: 300,
                     child: Padding(
                       padding: const EdgeInsets.only(right: 10),
-                      child: _ComparisonProductCard(product: product),
+                      child: _ComparisonProductCard(
+                        key: ValueKey(product.productId),
+                        product: product,
+                      ),
                     ),
                   ),
                 )
@@ -1429,15 +1432,14 @@ class _ComparisonResult extends StatelessWidget {
 }
 
 class _ComparisonProductCard extends StatelessWidget {
-  const _ComparisonProductCard({required this.product});
+  const _ComparisonProductCard({super.key, required this.product});
 
   final Product product;
 
   @override
   Widget build(BuildContext context) {
     final specs = product.specifications;
-    final app = context.watch<AppState>();
-    final liveRating = app.getProductLiveRating(product.productId);
+    final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(product.productId));
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(10),

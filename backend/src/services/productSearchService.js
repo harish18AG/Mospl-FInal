@@ -16,14 +16,34 @@ async function searchProductsLocally(text) {
   const query = {};
 
   // Extract Category
-  if (clean.includes('women wallet') || clean.includes("women's wallet")) {
+  if (
+    clean.includes('women wallet') || 
+    clean.includes("women's wallet") || 
+    clean.includes('women wallets') || 
+    clean.includes("women's wallets") ||
+    (clean.includes('women') && (clean.includes('wallet') || clean.includes('wallets'))) ||
+    (clean.includes('woman') && (clean.includes('wallet') || clean.includes('wallets'))) ||
+    (clean.includes('lady') && (clean.includes('wallet') || clean.includes('wallets'))) ||
+    (clean.includes('ladies') && (clean.includes('wallet') || clean.includes('wallets')))
+  ) {
     query.category = 'Women Wallets';
-  } else if (clean.includes('men wallet') || clean.includes("men's wallet") || clean.includes('wallet')) {
-    query.category = 'Men Wallets'; // Default wallets to Men Wallets
-  } else if (clean.includes('passport')) {
+  } else if (
+    clean.includes('men wallet') || 
+    clean.includes("men's wallet") || 
+    clean.includes('men wallets') || 
+    clean.includes("men's wallets") ||
+    (clean.includes('men') && (clean.includes('wallet') || clean.includes('wallets'))) ||
+    (clean.includes('man') && (clean.includes('wallet') || clean.includes('wallets'))) ||
+    clean.includes('coat wallet') ||
+    clean.includes('coat wallets')
+  ) {
+    query.category = 'Men Wallets';
+  } else if (clean.includes('passport') || clean.includes('passports') || clean.includes('travel')) {
     query.category = 'Passport Holders';
-  } else if (clean.includes('belt')) {
+  } else if (clean.includes('belt') || clean.includes('belts')) {
     query.category = 'Men Belts';
+  } else if (clean.includes('wallet') || clean.includes('wallets')) {
+    query.category = 'Men Wallets'; // Default wallets to Men Wallets
   }
 
   // Extract Price Constraints (under, below, less than, range)
@@ -47,7 +67,12 @@ async function searchProductsLocally(text) {
 
   // If a general search term might be present, filter further
   // Extract search term by removing common words/stop words
-  const stopWords = ['show', 'search', 'find', 'me', 'under', 'below', 'above', 'price', 'pricing', 'cost', 'how much', 'is', 'are', 'there', 'any', 'available', 'availability', 'stock', 'in stock', 'inr', 'rs', 'wallet', 'wallets', 'belt', 'belts', 'passport', 'passports', 'cover', 'covers', 'holder', 'holders'];
+  const stopWords = [
+    'show', 'search', 'find', 'me', 'under', 'below', 'above', 'price', 'pricing', 'cost', 'how much', 
+    'is', 'are', 'there', 'any', 'available', 'availability', 'stock', 'in stock', 'inr', 'rs', 
+    'wallet', 'wallets', 'belt', 'belts', 'passport', 'passports', 'cover', 'covers', 'holder', 'holders',
+    'women', "women's", 'woman', "woman's", 'lady', 'ladies', 'men', "men's", 'man', "man's", 'gent', 'gents', 'gentlemen', 'travel'
+  ];
   const words = clean.split(/\s+/).filter(w => !stopWords.includes(w) && w.length > 2 && !/^\d+$/.test(w));
   
   if (words.length > 0) {

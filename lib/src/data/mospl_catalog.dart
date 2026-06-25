@@ -483,6 +483,7 @@ Product _buildProduct(_WebsiteProduct record, int index) {
     subcategory: record.subcategory,
     price: record.price,
     oldPrice: record.oldPrice,
+    customDiscount: 0,
     discountPercentage: ((record.oldPrice - record.price) * 100 / record.oldPrice).round(),
     rating: 0,
     reviewCount: record.reviewCount,

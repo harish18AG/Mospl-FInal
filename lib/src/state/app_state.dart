@@ -45,6 +45,8 @@ class AppState extends ChangeNotifier {
   StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _cartStream;
   StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _wishlistStream;
   StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _allReviewsStream;
+  StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _dailyOffersStream;
+  StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _productsStream;
   String? _realtimeSyncUid; // tracks which UID streams are active for
 
   String searchQuery = '';
@@ -72,7 +74,36 @@ class AppState extends ChangeNotifier {
   final List<Map<String, dynamic>> salesByCategory = [];
   AdminMetrics? adminMetrics;
 
-  List<Product> get allProducts => List.unmodifiable(_allProducts);
+  Map<String, int> dailyOffers = {
+    'monday': 10,
+    'tuesday': 15,
+    'wednesday': 20,
+    'thursday': 25,
+    'friday': 30,
+    'saturday': 35,
+    'sunday': 40,
+  };
+
+  Product applyDynamicPriceToProduct(Product product) {
+    final customDiscount = product.customDiscount;
+    int discountPercentage = 0;
+    if (customDiscount > 0) {
+      discountPercentage = customDiscount;
+    } else {
+      final days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      final weekday = DateTime.now().weekday; // 1 = Monday, ..., 7 = Sunday
+      final dayName = days[weekday % 7];
+      discountPercentage = dailyOffers[dayName] ?? 0;
+    }
+    final oldPrice = product.oldPrice > 0 ? product.oldPrice : product.price;
+    final price = oldPrice - (oldPrice * discountPercentage / 100).round();
+    return product.copyWith(
+      discountPercentage: discountPercentage,
+      price: price,
+    );
+  }
+
+  List<Product> get allProducts => List.unmodifiable(_allProducts.map(applyDynamicPriceToProduct).toList());
 
   /// Returns all reviews for a given [productId], newest first.
   List<Review> reviewsForProduct(String productId) =>
@@ -80,7 +111,7 @@ class AppState extends ChangeNotifier {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   List<Product> get visibleProducts {
-    Iterable<Product> result = _allProducts;
+    Iterable<Product> result = allProducts;
     final query = searchQuery.trim().toLowerCase();
     if (query.isNotEmpty) {
       result = result.where((product) {
@@ -117,23 +148,23 @@ class AppState extends ChangeNotifier {
   }
 
   List<Product> get featuredProducts {
-    final flagged = _allProducts.where((p) => p.isFeatured).take(16).toList();
-    return flagged.isEmpty ? _allProducts.take(16).toList() : flagged;
+    final flagged = allProducts.where((p) => p.isFeatured).take(16).toList();
+    return flagged.isEmpty ? allProducts.take(16).toList() : flagged;
   }
 
   List<Product> get trendingProducts {
-    final flagged = _allProducts.where((p) => p.isTrending).take(24).toList();
-    return flagged.isEmpty ? _allProducts.take(24).toList() : flagged;
+    final flagged = allProducts.where((p) => p.isTrending).take(24).toList();
+    return flagged.isEmpty ? allProducts.take(24).toList() : flagged;
   }
 
   List<Product> get bestSellers {
-    final flagged = _allProducts.where((p) => p.isBestSeller).take(16).toList();
-    return flagged.isEmpty ? _allProducts.take(16).toList() : flagged;
+    final flagged = allProducts.where((p) => p.isBestSeller).take(16).toList();
+    return flagged.isEmpty ? allProducts.take(16).toList() : flagged;
   }
-  List<Product> get wishlistProducts => _allProducts.where((p) => wishlist.contains(p.productId)).toList();
+  List<Product> get wishlistProducts => allProducts.where((p) => wishlist.contains(p.productId)).toList();
   List<Product> get recommendations {
     final seen = recentlyViewed.map((p) => p.category).toSet();
-    final pool = seen.isEmpty ? trendingProducts : _allProducts.where((p) => seen.contains(p.category)).toList();
+    final pool = seen.isEmpty ? trendingProducts : allProducts.where((p) => seen.contains(p.category)).toList();
     return pool.take(24).toList();
   }
 
@@ -157,15 +188,20 @@ class AppState extends ChangeNotifier {
         _apiClient.fetchCategories(),
         _apiClient.fetchCoupons(),
         _apiClient.fetchBanners(),
+        _apiClient.fetchDailyOffers().catchError((_) => <String, int>{}),
       ]);
       final products = results[0] as List<Product>;
       final backendCategories = results[1] as List<ProductCategory>;
       final backendCoupons = results[2] as List<Coupon>;
       final backendBanners = results[3] as List<BannerItem>;
+      final backendDailyOffers = results[4] as Map<String, int>;
 
       _allProducts
         ..clear()
         ..addAll(products);
+      if (backendDailyOffers.isNotEmpty) {
+        dailyOffers = backendDailyOffers;
+      }
       categories = backendCategories.isEmpty ? buildCategories(_allProducts) : backendCategories;
       coupons = backendCoupons.isEmpty ? buildCoupons() : backendCoupons;
       banners
@@ -215,6 +251,7 @@ class AppState extends ChangeNotifier {
               subcategory: (docData['subcategory'] ?? docData['category'])?.toString() ?? existing.subcategory,
               price: docData['price'] != null ? _int(docData['price']) : existing.price,
               oldPrice: docData['oldPrice'] != null ? _int(docData['oldPrice']) : existing.oldPrice,
+              customDiscount: docData['customDiscount'] != null ? _int(docData['customDiscount']) : existing.customDiscount,
               discountPercentage: docData['discountPercentage'] != null ? _int(docData['discountPercentage']) : existing.discountPercentage,
               rating: docData['rating'] != null ? _double(docData['rating']) : existing.rating,
               reviewCount: docData['reviewCount'] != null ? _int(docData['reviewCount']) : existing.reviewCount,
@@ -278,6 +315,8 @@ class AppState extends ChangeNotifier {
       _startRealtimeSync(firebaseUser?.uid);
     }
     subscribeAllReviews();
+    subscribeDailyOffers();
+    subscribeProducts();
     notifyListeners();
   }
 
@@ -1350,7 +1389,9 @@ class AppState extends ChangeNotifier {
 
   /// Reduces stock locally and in Firestore for every product in the order.
   void _decrementStockForOrder(AppOrder order) {
-    final db = _firebaseReady ? firestore.FirebaseFirestore.instance : null;
+    // Only write stock updates directly to Firestore when operating in local/fallback mode (backendToken == null).
+    // When backendToken is present, the backend handles stock decrement, and the client should only update its local in-memory state.
+    final db = (_firebaseReady && backendToken == null) ? firestore.FirebaseFirestore.instance : null;
     for (final line in order.items) {
       final productId = line.product.productId;
       final qty = line.quantity;
@@ -1589,6 +1630,101 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  void subscribeDailyOffers() {
+    if (!_firebaseReady) return;
+    _dailyOffersStream?.cancel();
+    _dailyOffersStream = firestore.FirebaseFirestore.instance
+        .collection('settings')
+        .doc('daily_offers')
+        .snapshots()
+        .listen((snapshot) {
+      if (!snapshot.exists) return;
+      final data = snapshot.data();
+      if (data == null) return;
+      
+      final Map<String, int> newOffers = {};
+      data.forEach((key, value) {
+        newOffers[key.toLowerCase()] = _int(value);
+      });
+      if (newOffers.isNotEmpty) {
+        dailyOffers = newOffers;
+        notifyListeners();
+      }
+    }, onError: (error) {
+      debugPrint('Firestore daily_offers document stream error: $error');
+    });
+  }
+
+  void subscribeProducts() {
+    if (!_firebaseReady) return;
+    _productsStream?.cancel();
+    _productsStream = firestore.FirebaseFirestore.instance
+        .collection('products')
+        .snapshots()
+        .listen((snapshot) {
+      bool changed = false;
+      for (final change in snapshot.docChanges) {
+        final doc = change.doc;
+        final docData = doc.data();
+        if (docData == null) continue;
+        final index = _allProducts.indexWhere((p) => p.productId == doc.id);
+        if (change.type == firestore.DocumentChangeType.removed) {
+          if (index >= 0) {
+            _allProducts.removeAt(index);
+            changed = true;
+          }
+        } else {
+          // Added or Modified
+          if (index >= 0) {
+            final existing = _allProducts[index];
+            _allProducts[index] = Product(
+              productId: existing.productId,
+              name: docData['name']?.toString() ?? existing.name,
+              category: docData['category']?.toString() ?? existing.category,
+              subcategory: (docData['subcategory'] ?? docData['category'])?.toString() ?? existing.subcategory,
+              price: docData['price'] != null ? _int(docData['price']) : existing.price,
+              oldPrice: docData['oldPrice'] != null ? _int(docData['oldPrice']) : existing.oldPrice,
+              customDiscount: docData['customDiscount'] != null ? _int(docData['customDiscount']) : existing.customDiscount,
+              discountPercentage: docData['discountPercentage'] != null ? _int(docData['discountPercentage']) : existing.discountPercentage,
+              rating: docData['rating'] != null ? _double(docData['rating']) : existing.rating,
+              reviewCount: docData['reviewCount'] != null ? _int(docData['reviewCount']) : existing.reviewCount,
+              stock: docData['stock'] != null ? _int(docData['stock']) : existing.stock,
+              sku: docData['sku']?.toString() ?? existing.sku,
+              shortDescription: (docData['shortDescription'] ?? docData['description'])?.toString() ?? existing.shortDescription,
+              description: docData['description']?.toString() ?? existing.description,
+              specifications: docData['specifications'] != null ? _stringMap(docData['specifications']) : existing.specifications,
+              material: docData['material']?.toString() ?? existing.material,
+              size: docData['size']?.toString() ?? existing.size,
+              color: docData['color']?.toString() ?? existing.color,
+              deliveryInfo: docData['deliveryInfo']?.toString() ?? existing.deliveryInfo,
+              returnPolicy: docData['returnPolicy']?.toString() ?? existing.returnPolicy,
+              warranty: docData['warranty']?.toString() ?? existing.warranty,
+              sourceUrl: docData['sourceUrl']?.toString() ?? existing.sourceUrl,
+              thumbnail: docData['thumbnail']?.toString() ?? existing.thumbnail,
+              galleryImages: docData['galleryImages'] != null ? _strings(docData['galleryImages']) : existing.galleryImages,
+              isFeatured: docData['isFeatured'] != null ? docData['isFeatured'] == true : existing.isFeatured,
+              isTrending: docData['isTrending'] != null ? docData['isTrending'] == true : existing.isTrending,
+              isBestSeller: docData['isBestSeller'] != null ? docData['isBestSeller'] == true : existing.isBestSeller,
+              createdAt: docData['createdAt'] != null ? _date(docData['createdAt']) : existing.createdAt,
+              updatedAt: _date(docData['updatedAt'] ?? existing.updatedAt),
+            );
+            changed = true;
+          } else {
+            final product = Product.fromMap({...docData, 'productId': doc.id});
+            _allProducts.insert(0, product);
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        categories = buildCategories(_allProducts);
+        notifyListeners();
+      }
+    }, onError: (error) {
+      debugPrint('Firestore products stream error: $error');
+    });
+  }
+
   double getProductLiveRating(String productId) {
     final prodReviews = reviews.where((r) => r.productId == productId).toList();
     if (prodReviews.isEmpty) return 0;
@@ -1799,20 +1935,27 @@ class AppState extends ChangeNotifier {
     }
 
     // 3. Fire-and-forget sync to Render backend to keep in-memory sync'd
-    if (backendToken != null && currentUser?.isAdmin == true) {
-      _apiClient.updateInventory(
-        productId: productId,
-        stock: clampedStock,
-        lowStockThreshold: lowStockThreshold,
-        token: backendToken!,
-      ).then((item) {
-        inventory.removeWhere((entry) => entry.productId == productId);
-        inventory.add(item);
-        notifyListeners();
-      }).catchError((_) {
-        // Silently ignore Render backend failures; Firebase is our source of truth
-      });
+    Future<void> syncStock() async {
+      if (_firebaseReady && backendToken == null) {
+        await _syncBackendFirebaseSession();
+      }
+      if (backendToken != null && currentUser?.isAdmin == true) {
+        try {
+          final item = await _apiClient.updateInventory(
+            productId: productId,
+            stock: clampedStock,
+            lowStockThreshold: lowStockThreshold,
+            token: backendToken!,
+          );
+          inventory.removeWhere((entry) => entry.productId == productId);
+          inventory.add(item);
+          notifyListeners();
+        } catch (_) {
+          // Silently ignore Render backend failures; Firebase is our source of truth
+        }
+      }
     }
+    syncStock().ignore();
   }
 
   Future<void> updateOrderStatus({
@@ -2079,6 +2222,9 @@ class AppState extends ChangeNotifier {
     final clampedProduct = product.copyWith(stock: product.stock.clamp(0, 30));
     final index = _allProducts.indexWhere((item) => item.productId == clampedProduct.productId);
     var productToStore = clampedProduct;
+    if (_firebaseReady && backendToken == null) {
+      await _syncBackendFirebaseSession();
+    }
     // Try backend API first
     if (currentUser?.isAdmin == true && backendToken != null) {
       try {
@@ -2122,6 +2268,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deleteProduct(String productId) async {
+    if (_firebaseReady && backendToken == null) {
+      await _syncBackendFirebaseSession();
+    }
     if (currentUser?.isAdmin == true && backendToken != null) {
       try {
         await _apiClient.deleteProduct(productId, backendToken!);
@@ -2174,14 +2323,76 @@ class AppState extends ChangeNotifier {
     }
     await Future<void>.delayed(const Duration(milliseconds: 450));
     final lower = clean.toLowerCase();
+    
+    // Determine category constraint if possible
+    String? targetCategory;
+    if (lower.contains('women wallet') || 
+        lower.contains("women's wallet") || 
+        lower.contains('women wallets') || 
+        lower.contains("women's wallets") ||
+        (lower.contains('women') && (lower.contains('wallet') || lower.contains('wallets'))) ||
+        (lower.contains('woman') && (lower.contains('wallet') || lower.contains('wallets'))) ||
+        (lower.contains('lady') && (lower.contains('wallet') || lower.contains('wallets'))) ||
+        (lower.contains('ladies') && (lower.contains('wallet') || lower.contains('wallets')))) {
+      targetCategory = 'Women Wallets';
+    } else if (lower.contains('men wallet') || 
+        lower.contains("men's wallet") || 
+        lower.contains('men wallets') || 
+        lower.contains("men's wallets") ||
+        (lower.contains('men') && (lower.contains('wallet') || lower.contains('wallets'))) ||
+        (lower.contains('man') && (lower.contains('wallet') || lower.contains('wallets'))) ||
+        lower.contains('coat wallet') ||
+        lower.contains('coat wallets')) {
+      targetCategory = 'Men Wallets';
+    } else if (lower.contains('passport') || lower.contains('passports') || lower.contains('travel')) {
+      targetCategory = 'Passport Holders';
+    } else if (lower.contains('belt') || lower.contains('belts')) {
+      targetCategory = 'Men Belts';
+    }
+
+    // Extract query words, excluding stop words
+    final stopWords = {
+      'show', 'search', 'find', 'me', 'under', 'below', 'above', 'price', 
+      'pricing', 'cost', 'how much', 'is', 'are', 'there', 'any', 'available', 
+      'availability', 'stock', 'in stock', 'inr', 'rs', 'wallet', 'wallets', 
+      'belt', 'belts', 'passport', 'passports', 'cover', 'covers', 'holder', 
+      'holders', 'women', "women's", 'woman', "woman's", 'lady', 'ladies', 
+      'men', "men's", 'man', "man's", 'gent', 'gents', 'gentlemen', 'travel'
+    };
+    final words = lower.split(RegExp(r'\s+')).where((w) {
+      return !stopWords.contains(w) && w.length > 2 && int.tryParse(w) == null;
+    }).toList();
+
     final recommended = _allProducts.where((product) {
-      final haystack = '${product.name} ${product.category} ${product.subcategory}'.toLowerCase();
-      return lower.split(' ').any((word) => word.length > 3 && haystack.contains(word)) ||
-          (lower.contains('wallet') && product.category.contains('Wallet')) ||
-          (lower.contains('belt') && product.category.contains('Belts')) ||
-          (lower.contains('travel') && product.category.contains('Passport'));
+      final category = product.category;
+      
+      // 1. Category filter
+      if (targetCategory != null) {
+        if (category != targetCategory) return false;
+      } else {
+        // Generic fallback check if no specific target category is found
+        bool typeMatch = false;
+        if ((lower.contains('wallet') || lower.contains('wallets')) && category.contains('Wallet')) typeMatch = true;
+        if ((lower.contains('belt') || lower.contains('belts')) && category.contains('Belts')) typeMatch = true;
+        if ((lower.contains('passport') || lower.contains('passports')) && category.contains('Passport')) typeMatch = true;
+        
+        // If query has generic keywords but product doesn't match, filter out
+        if ((lower.contains('wallet') || lower.contains('wallets') || 
+             lower.contains('belt') || lower.contains('belts') || 
+             lower.contains('passport') || lower.contains('passports')) && !typeMatch) {
+          return false;
+        }
+      }
+      
+      // 2. Keyword filter (if any specific search words exist)
+      if (words.isNotEmpty) {
+        final haystack = '${product.name} ${product.category} ${product.subcategory} ${product.color}'.toLowerCase();
+        return words.any((word) => haystack.contains(word));
+      }
+      
+      return true;
     }).take(4).map((product) => product.productId).toList();
-    final reply = _dummyReply(lower, recommended);
+    final reply = _dummyReply(clean, lower, recommended);
     chatMessages.add(
       ChatMessage(
         id: _uuid.v4(),
@@ -2196,7 +2407,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _dummyReply(String lower, List<String> recommended) {
+  String _dummyReply(String original, String lower, List<String> recommended) {
     if (lower.contains('order') || lower.contains('track')) {
       return 'I can help with order status. Open My Orders to view confirmation, payment state, and delivery tracking.';
     }
@@ -2209,7 +2420,7 @@ class AppState extends ChangeNotifier {
     if (recommended.isNotEmpty) {
       return 'Here are MOSPL leather products that match your request. Most carry 30% off, free shipping, and 5 day delivery.';
     }
-    return 'Tell me what you are shopping for: men wallet, coat wallet, hand woven belt, passport holder, or women wallet.';
+    return 'I cannot help with "$original". I am the MOSPL AI Assistant and can only help with leather products, orders, returns, or support. Tell me what you are shopping for: men wallet, coat wallet, hand woven belt, passport holder, or women wallet.';
   }
 
   Future<void> _persistUser() async {
@@ -2273,6 +2484,8 @@ class AppState extends ChangeNotifier {
         if (idToken == null || idToken.isEmpty) return;
         _applyAuthSession(await _apiClient.firebaseAuthSession(idToken));
         if (backendToken != null) await _persistUser();
+        subscribeDailyOffers();
+        subscribeProducts();
         return; // success
       } catch (_) {
         if (attempt < 2) {
@@ -2437,6 +2650,35 @@ class AppState extends ChangeNotifier {
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
       ),
     ]);
+  }
+
+  Future<void> updateDailyOffers(Map<String, int> schedule) async {
+    if (_firebaseReady && backendToken == null) {
+      await _syncBackendFirebaseSession();
+    }
+    if (_firebaseReady) {
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('settings')
+            .doc('daily_offers')
+            .set(schedule);
+      } catch (error) {
+        debugPrint('Firestore updateDailyOffers error: $error');
+      }
+    }
+    if (backendToken != null && currentUser?.isAdmin == true) {
+      try {
+        final updated = await _apiClient.updateDailyOffers(schedule, backendToken!);
+        dailyOffers = updated;
+        notifyListeners();
+      } catch (error) {
+        catalogError = error.toString();
+        rethrow;
+      }
+    } else {
+      dailyOffers = schedule;
+      notifyListeners();
+    }
   }
 }
 

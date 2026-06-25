@@ -12,6 +12,15 @@ const store = {
   admins: new Map(),
   products,
   categories,
+  dailyOffers: {
+    monday: 10,
+    tuesday: 15,
+    wednesday: 20,
+    thursday: 25,
+    friday: 30,
+    saturday: 35,
+    sunday: 40
+  },
   carts: new Map(),
   wishlists: new Map(),
   orders: [],

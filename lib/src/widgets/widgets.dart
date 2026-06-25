@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -212,10 +213,9 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final app = context.watch<AppState>();
-    final wished = app.isWishlisted(product.productId);
-    final liveRating = app.getProductLiveRating(product.productId);
-    final liveReviewCount = app.getProductLiveReviewCount(product.productId);
+    final wished = context.select<AppState, bool>((app) => app.isWishlisted(product.productId));
+    final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(product.productId));
+    final liveReviewCount = context.select<AppState, int>((app) => app.getProductLiveReviewCount(product.productId));
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -362,12 +362,16 @@ class ProductGrid extends StatelessWidget {
             crossAxisCount: crossAxisCount,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 0.5,
+            childAspectRatio: 0.45,
           ),
-          itemBuilder: (context, index) => ProductCard(
-            product: products[index],
-            compact: compact,
-          ),
+          itemBuilder: (context, index) {
+            final product = products[index];
+            return ProductCard(
+              key: ValueKey(product.productId),
+              product: product,
+              compact: compact,
+            );
+          },
         );
       },
     );
@@ -388,10 +392,17 @@ class HorizontalProducts extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: products.length,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
-        itemBuilder: (context, index) => SizedBox(
-          width: 172,
-          child: ProductCard(product: products[index], compact: true),
-        ),
+        itemBuilder: (context, index) {
+          final product = products[index];
+          return SizedBox(
+            width: 172,
+            child: ProductCard(
+              key: ValueKey(product.productId),
+              product: product,
+              compact: true,
+            ),
+          );
+        },
       ),
     );
   }
@@ -656,5 +667,43 @@ class MetricCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class StockLimitTextInputFormatter extends TextInputFormatter {
+  final int maxVal = 30;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+    final intValue = int.tryParse(newValue.text);
+    if (intValue == null || intValue > maxVal || intValue < 0) {
+      return oldValue;
+    }
+    return newValue;
+  }
+}
+
+class PercentLimitTextInputFormatter extends TextInputFormatter {
+  final int maxVal = 100;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+    final intValue = int.tryParse(newValue.text);
+    if (intValue == null || intValue > maxVal || intValue < 0) {
+      return oldValue;
+    }
+    return newValue;
   }
 }

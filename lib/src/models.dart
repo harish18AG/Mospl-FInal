@@ -44,6 +44,7 @@ class Product {
     required this.subcategory,
     required this.price,
     required this.oldPrice,
+    required this.customDiscount,
     required this.discountPercentage,
     required this.rating,
     required this.reviewCount,
@@ -74,6 +75,7 @@ class Product {
   final String subcategory;
   final int price;
   final int oldPrice;
+  final int customDiscount;
   final int discountPercentage;
   final double rating;
   final int reviewCount;
@@ -110,6 +112,7 @@ class Product {
       subcategory: (map['subcategory'] ?? map['category'])?.toString() ?? 'Not Specified',
       price: map['price'] != null ? _int(map['price']) : 0,
       oldPrice: map['oldPrice'] != null ? _int(map['oldPrice']) : (map['price'] != null ? _int(map['price']) : 0),
+      customDiscount: map['customDiscount'] != null ? _int(map['customDiscount']) : 0,
       discountPercentage: map['discountPercentage'] != null ? _int(map['discountPercentage']) : 0,
       rating: map['rating'] != null ? _double(map['rating']) : 0.0,
       reviewCount: map['reviewCount'] != null ? _int(map['reviewCount']) : 0,
@@ -142,6 +145,7 @@ class Product {
         'subcategory': subcategory,
         'price': price,
         'oldPrice': oldPrice,
+        'customDiscount': customDiscount,
         'discountPercentage': discountPercentage,
         'rating': rating,
         'reviewCount': reviewCount,
@@ -173,6 +177,7 @@ class Product {
     String? subcategory,
     int? price,
     int? oldPrice,
+    int? customDiscount,
     int? discountPercentage,
     double? rating,
     int? reviewCount,
@@ -203,6 +208,7 @@ class Product {
       subcategory: subcategory ?? this.subcategory,
       price: price ?? this.price,
       oldPrice: oldPrice ?? this.oldPrice,
+      customDiscount: customDiscount ?? this.customDiscount,
       discountPercentage: discountPercentage ?? this.discountPercentage,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,

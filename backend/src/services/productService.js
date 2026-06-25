@@ -5,8 +5,16 @@ const NOT_SPECIFIED = 'Not Specified';
 
 function normalizeProduct(payload, existing = {}) {
   const now = new Date().toISOString();
-  const price = Number(payload.price ?? existing.price ?? 0);
-  const oldPrice = Number(payload.oldPrice ?? existing.oldPrice ?? price);
+  const oldPrice = Number(payload.oldPrice ?? existing.oldPrice ?? payload.price ?? existing.price ?? 0);
+  const customDiscount = payload.customDiscount !== undefined
+    ? (payload.customDiscount === null ? 0 : Number(payload.customDiscount))
+    : (existing.customDiscount !== undefined ? Number(existing.customDiscount) : 0);
+
+  let price = Number(payload.price ?? existing.price ?? 0);
+  if (customDiscount > 0) {
+    price = oldPrice - Math.round((oldPrice * customDiscount) / 100);
+  }
+
   const galleryImages = payload.galleryImages || existing.galleryImages || [];
   const thumbnail = payload.thumbnail || existing.thumbnail || galleryImages[0] || '/static/products/product_fallback.png';
   return {
@@ -16,6 +24,7 @@ function normalizeProduct(payload, existing = {}) {
     subcategory: payload.subcategory || existing.subcategory || payload.category || existing.category || NOT_SPECIFIED,
     price,
     oldPrice,
+    customDiscount,
     discountPercentage: Number(
       payload.discountPercentage ??
         existing.discountPercentage ??
@@ -23,7 +32,7 @@ function normalizeProduct(payload, existing = {}) {
     ),
     rating: Number(payload.rating ?? existing.rating ?? 0),
     reviewCount: Number(payload.reviewCount ?? existing.reviewCount ?? 0),
-    stock: Number(payload.stock ?? existing.stock ?? 1),
+    stock: Math.min(30, Math.max(0, Number(payload.stock ?? existing.stock ?? 1))),
     sku: payload.sku || existing.sku || NOT_SPECIFIED,
     shortDescription: payload.shortDescription || existing.shortDescription || payload.description || existing.description || payload.name || existing.name || NOT_SPECIFIED,
     description: payload.description || existing.description || payload.shortDescription || existing.shortDescription || payload.name || existing.name || NOT_SPECIFIED,
@@ -42,6 +51,38 @@ function normalizeProduct(payload, existing = {}) {
     isBestSeller: payload.isBestSeller ?? existing.isBestSeller ?? false,
     createdAt: payload.createdAt || existing.createdAt || now,
     updatedAt: now,
+  };
+}
+
+async function getDailyOffers() {
+  if (isFirebaseConfigured && db) {
+    try {
+      const doc = await db.collection('settings').doc('daily_offers').get();
+      if (doc.exists) {
+        return doc.data();
+      }
+    } catch (_) {}
+  }
+  return store.dailyOffers;
+}
+
+function applyDynamicPrice(product, dailyOffers) {
+  if (!product) return product;
+  const customDiscount = Number(product.customDiscount ?? 0);
+  let discountPercentage = 0;
+  if (customDiscount > 0) {
+    discountPercentage = customDiscount;
+  } else {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = days[new Date().getDay()];
+    discountPercentage = Number(dailyOffers[dayName] ?? 0);
+  }
+  const oldPrice = Number(product.oldPrice || product.price || 0);
+  const price = oldPrice - Math.round((oldPrice * discountPercentage) / 100);
+  return {
+    ...product,
+    discountPercentage,
+    price,
   };
 }
 
@@ -78,28 +119,49 @@ function applyQuery(products, query) {
 }
 
 async function getAllProducts(query = {}) {
-  if (!isFirebaseConfigured) return applyQuery(store.products, query);
+  const dailyOffers = await getDailyOffers();
+  if (!isFirebaseConfigured) {
+    const mapped = store.products.map((p) => applyDynamicPrice(p, dailyOffers));
+    return applyQuery(mapped, query);
+  }
   const snapshot = await db.collection('products').get();
-  return applyQuery(snapshot.docs.map((doc) => doc.data()), query);
+  const mapped = snapshot.docs.map((doc) => applyDynamicPrice(doc.data(), dailyOffers));
+  return applyQuery(mapped, query);
 }
 
 async function getProductById(productId) {
-  if (!isFirebaseConfigured) return store.products.find((product) => product.productId === productId) || null;
+  const dailyOffers = await getDailyOffers();
+  if (!isFirebaseConfigured) {
+    const found = store.products.find((product) => product.productId === productId) || null;
+    return found ? applyDynamicPrice(found, dailyOffers) : null;
+  }
   const doc = await db.collection('products').doc(productId).get();
-  return doc.exists ? doc.data() : null;
+  return doc.exists ? applyDynamicPrice(doc.data(), dailyOffers) : null;
 }
 
 async function createProduct(payload) {
   const product = normalizeProduct(payload);
-  if (!isFirebaseConfigured) {
+  const index = store.products.findIndex((item) => item.productId === product.productId);
+  if (index >= 0) {
+    store.products[index] = product;
+  } else {
     store.products.unshift(product);
+  }
+  const invIndex = store.inventory.findIndex((item) => item.productId === product.productId);
+  if (invIndex >= 0) {
+    store.inventory[invIndex].stock = product.stock;
+    store.inventory[invIndex].lastRestockedAt = product.updatedAt;
+  } else {
     store.inventory.push({
       productId: product.productId,
       stock: product.stock,
       lowStockThreshold: 5,
       lastRestockedAt: product.updatedAt,
     });
-    return product;
+  }
+  if (!isFirebaseConfigured) {
+    const dailyOffers = await getDailyOffers();
+    return applyDynamicPrice(product, dailyOffers);
   }
   await db.collection('products').doc(product.productId).set(product);
   await db.collection('inventory').doc(product.productId).set({
@@ -108,29 +170,35 @@ async function createProduct(payload) {
     lowStockThreshold: 5,
     lastRestockedAt: product.updatedAt,
   });
-  return product;
+  const dailyOffers = await getDailyOffers();
+  return applyDynamicPrice(product, dailyOffers);
 }
 
 async function updateProduct(productId, payload) {
   const product = await getProductById(productId);
   if (!product) return null;
   const updated = normalizeProduct({ ...payload, productId }, product);
-  if (!isFirebaseConfigured) {
-    const index = store.products.findIndex((item) => item.productId === productId);
+  const index = store.products.findIndex((item) => item.productId === productId);
+  if (index >= 0) {
     store.products[index] = updated;
-    const invIndex = store.inventory.findIndex((item) => item.productId === productId);
-    if (invIndex >= 0) {
-      store.inventory[invIndex].stock = updated.stock;
-      store.inventory[invIndex].lastRestockedAt = updated.updatedAt;
-    } else {
-      store.inventory.push({
-        productId,
-        stock: updated.stock,
-        lowStockThreshold: 5,
-        lastRestockedAt: updated.updatedAt,
-      });
-    }
-    return updated;
+  } else {
+    store.products.unshift(updated);
+  }
+  const invIndex = store.inventory.findIndex((item) => item.productId === productId);
+  if (invIndex >= 0) {
+    store.inventory[invIndex].stock = updated.stock;
+    store.inventory[invIndex].lastRestockedAt = updated.updatedAt;
+  } else {
+    store.inventory.push({
+      productId,
+      stock: updated.stock,
+      lowStockThreshold: 5,
+      lastRestockedAt: updated.updatedAt,
+    });
+  }
+  if (!isFirebaseConfigured) {
+    const dailyOffers = await getDailyOffers();
+    return applyDynamicPrice(updated, dailyOffers);
   }
   await db.collection('products').doc(productId).set(updated, { merge: true });
   await db.collection('inventory').doc(productId).set({
@@ -138,17 +206,18 @@ async function updateProduct(productId, payload) {
     stock: updated.stock,
     lastRestockedAt: updated.updatedAt,
   }, { merge: true });
-  return updated;
+  const dailyOffers = await getDailyOffers();
+  return applyDynamicPrice(updated, dailyOffers);
 }
 
 async function deleteProduct(productId) {
+  const before = store.products.length;
+  store.products = store.products.filter((product) => product.productId !== productId);
   if (!isFirebaseConfigured) {
-    const before = store.products.length;
-    store.products = store.products.filter((product) => product.productId !== productId);
     return before !== store.products.length;
   }
   await db.collection('products').doc(productId).delete();
   return true;
 }
 
-module.exports = { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct };
+module.exports = { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, getDailyOffers };

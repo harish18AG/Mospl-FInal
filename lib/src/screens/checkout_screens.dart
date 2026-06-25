@@ -353,11 +353,23 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
   String? _validateAddress() {
     if (_name.text.trim().isEmpty) return 'Enter your full name.';
-    if (_phone.text.trim().isEmpty) return 'Enter a delivery contact number.';
+    
+    final phone = _phone.text.trim();
+    if (phone.isEmpty) return 'Enter a delivery contact number.';
+    if (phone.length != 10 || !RegExp(r'^\d+$').hasMatch(phone)) {
+      return 'Invalid phone number';
+    }
+    
     if (_line1.text.trim().isEmpty) return 'Enter house, building, or street details.';
     if (_city.text.trim().isEmpty) return 'Enter your city.';
     if (_state.text.trim().isEmpty) return 'Enter your state.';
-    if (_pincode.text.trim().isEmpty) return 'Enter your pincode.';
+    
+    final pincode = _pincode.text.trim();
+    if (pincode.isEmpty) return 'Enter your pincode.';
+    if (pincode.length != 6 || !RegExp(r'^\d+$').hasMatch(pincode)) {
+      return 'Invalid pincode';
+    }
+    
     return null;
   }
 }
@@ -1058,7 +1070,11 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
               bool done = false;
               bool failed = false;
               
-              if (index == 0) {
+              if (order.status == 'Cancelled') {
+                if (index == 0) {
+                  failed = true;
+                }
+              } else if (index == 0) {
                 if (isPaymentFailed) {
                   failed = true;
                 } else {

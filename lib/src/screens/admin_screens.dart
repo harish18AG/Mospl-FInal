@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -68,6 +69,7 @@ class AdminDashboardScreen extends StatelessWidget {
           const SizedBox(height: 8),
           _adminLink(context, 'Products', Icons.inventory_2_outlined, '/admin/products'),
           _adminLink(context, 'Categories', Icons.category_outlined, '/admin/categories'),
+          _adminLink(context, 'Daily Offers', Icons.local_offer_outlined, '/admin/daily-offers'),
           _adminLink(context, 'Orders', Icons.receipt_long_outlined, '/admin/orders'),
           _adminLink(context, 'Users', Icons.people_outline, '/admin/users'),
           _adminLink(context, 'Reviews', Icons.rate_review_outlined, '/admin/reviews'),
@@ -197,18 +199,28 @@ class AdminProductsScreen extends StatelessWidget {
         content: TextField(
           controller: stock,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            StockLimitTextInputFormatter(),
+          ],
           decoration: const InputDecoration(labelText: 'Stock'),
         ),
         actions: [
           TextButton(onPressed: () => dialogContext.pop(), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () async {
-              final newStock = (int.tryParse(stock.text) ?? product.stock).clamp(0, 30);
-              await context.read<AppState>().updateInventoryStock(
+            onPressed: () {
+              final val = int.tryParse(stock.text) ?? product.stock;
+              if (val > 30) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('you cannot update more than 30')),
+                );
+                return;
+              }
+              dialogContext.pop();
+              context.read<AppState>().updateInventoryStock(
                     productId: product.productId,
-                    stock: newStock,
+                    stock: val,
                   );
-              if (dialogContext.mounted) dialogContext.pop();
             },
             child: const Text('Update'),
           ),
@@ -233,6 +245,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final TextEditingController _category;
   late final TextEditingController _price;
   late final TextEditingController _oldPrice;
+  late final TextEditingController _customDiscount;
   late final TextEditingController _stock;
   late final TextEditingController _sourceUrl;
   late final TextEditingController _description;
@@ -247,6 +260,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _category = TextEditingController(text: _editing?.category ?? 'Men Wallets');
     _price = TextEditingController(text: (_editing?.price ?? 595).toString());
     _oldPrice = TextEditingController(text: (_editing?.oldPrice ?? 850).toString());
+    _customDiscount = TextEditingController(text: (_editing?.customDiscount ?? 0).toString());
     _stock = TextEditingController(text: (_editing?.stock ?? 25).toString());
     _sourceUrl = TextEditingController(text: _editing?.sourceUrl ?? 'Not Specified');
     _description = TextEditingController(text: _editing?.description ?? sample.description);
@@ -258,6 +272,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _category.dispose();
     _price.dispose();
     _oldPrice.dispose();
+    _customDiscount.dispose();
     _stock.dispose();
     _sourceUrl.dispose();
     _description.dispose();
@@ -281,14 +296,44 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               Expanded(child: _field(_oldPrice, 'Old price', Icons.money_off, keyboard: TextInputType.number)),
             ],
           ),
-          _field(_stock, 'Stock', Icons.warehouse_outlined, keyboard: TextInputType.number),
+          _field(
+            _customDiscount,
+            'Discount % (Optional override)',
+            Icons.percent_outlined,
+            keyboard: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              PercentLimitTextInputFormatter(),
+            ],
+          ),
+          _field(
+            _stock,
+            'Stock',
+            Icons.warehouse_outlined,
+            keyboard: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              StockLimitTextInputFormatter(),
+            ],
+          ),
           _field(_sourceUrl, 'Source URL', Icons.open_in_new),
           _field(_description, 'Description', Icons.description_outlined, maxLines: 4),
           const SizedBox(height: 10),
           ElevatedButton(
             onPressed: () {
-              final price = int.tryParse(_price.text) ?? sample.price;
+              final stockVal = int.tryParse(_stock.text) ?? sample.stock;
+              if (stockVal > 30) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('you cannot update more than 30')),
+                );
+                return;
+              }
               final oldPrice = int.tryParse(_oldPrice.text) ?? sample.oldPrice;
+              final customDiscount = int.tryParse(_customDiscount.text) ?? 0;
+              var price = int.tryParse(_price.text) ?? sample.price;
+              if (customDiscount > 0) {
+                price = oldPrice - (oldPrice * customDiscount / 100).round();
+              }
               final product = sample.copyWith(
                 productId: _editing?.productId ?? 'MOSPL-ADMIN-${DateTime.now().millisecondsSinceEpoch}',
                 name: _name.text.trim(),
@@ -296,8 +341,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 subcategory: _category.text.trim(),
                 price: price,
                 oldPrice: oldPrice,
-                discountPercentage: oldPrice > 0 ? ((oldPrice - price) * 100 / oldPrice).round() : 0,
-                stock: (int.tryParse(_stock.text) ?? sample.stock).clamp(0, 30),
+                customDiscount: customDiscount,
+                discountPercentage: customDiscount > 0
+                    ? customDiscount
+                    : (oldPrice > 0 ? ((oldPrice - price) * 100 / oldPrice).round() : 0),
+                stock: stockVal,
                 shortDescription: _description.text.trim(),
                 description: _description.text.trim(),
                 sourceUrl: _sourceUrl.text.trim().isEmpty ? 'Not Specified' : _sourceUrl.text.trim(),
@@ -305,8 +353,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 createdAt: _editing?.createdAt ?? DateTime.now(),
                 updatedAt: DateTime.now(),
               );
-              context.read<AppState>().upsertProduct(product);
               context.pop();
+              context.read<AppState>().upsertProduct(product);
             },
             child: const Text('Save Product'),
           ),
@@ -315,13 +363,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     );
   }
 
-  Widget _field(TextEditingController controller, String label, IconData icon, {TextInputType? keyboard, int maxLines = 1}) {
+  Widget _field(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType? keyboard,
+    int maxLines = 1,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
         keyboardType: keyboard,
         maxLines: maxLines,
+        inputFormatters: inputFormatters,
         decoration: InputDecoration(prefixIcon: Icon(icon), labelText: label),
       ),
     );
@@ -610,17 +666,28 @@ class AdminInventoryScreen extends StatelessWidget {
         content: TextField(
           controller: stock,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            StockLimitTextInputFormatter(),
+          ],
           decoration: const InputDecoration(labelText: 'Stock'),
         ),
         actions: [
           TextButton(onPressed: () => dialogContext.pop(), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () async {
-              await context.read<AppState>().updateInventoryStock(
+            onPressed: () {
+              final val = int.tryParse(stock.text) ?? product.stock;
+              if (val > 30) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('you cannot update more than 30')),
+                );
+                return;
+              }
+              dialogContext.pop();
+              context.read<AppState>().updateInventoryStock(
                     productId: product.productId,
-                    stock: int.tryParse(stock.text) ?? product.stock,
+                    stock: val,
                   );
-              if (dialogContext.mounted) dialogContext.pop();
             },
             child: const Text('Update'),
           ),
@@ -800,5 +867,128 @@ class AdminSimpleScreen extends StatelessWidget {
       ('Backend connected', 'Admin APIs are protected by JWT and admin role checks.'),
       ('Firestore ready', 'Products, orders, addresses, users, and configured modules sync through the backend.'),
     ];
+  }
+}
+
+class AdminDailyOffersScreen extends StatefulWidget {
+  const AdminDailyOffersScreen({super.key});
+
+  @override
+  State<AdminDailyOffersScreen> createState() => _AdminDailyOffersScreenState();
+}
+
+class _AdminDailyOffersScreenState extends State<AdminDailyOffersScreen> {
+  late final TextEditingController _monday;
+  late final TextEditingController _tuesday;
+  late final TextEditingController _wednesday;
+  late final TextEditingController _thursday;
+  late final TextEditingController _friday;
+  late final TextEditingController _saturday;
+  late final TextEditingController _sunday;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = context.read<AppState>();
+    final offers = state.dailyOffers;
+    _monday = TextEditingController(text: (offers['monday'] ?? 10).toString());
+    _tuesday = TextEditingController(text: (offers['tuesday'] ?? 15).toString());
+    _wednesday = TextEditingController(text: (offers['wednesday'] ?? 20).toString());
+    _thursday = TextEditingController(text: (offers['thursday'] ?? 25).toString());
+    _friday = TextEditingController(text: (offers['friday'] ?? 30).toString());
+    _saturday = TextEditingController(text: (offers['saturday'] ?? 35).toString());
+    _sunday = TextEditingController(text: (offers['sunday'] ?? 40).toString());
+  }
+
+  @override
+  void dispose() {
+    _monday.dispose();
+    _tuesday.dispose();
+    _wednesday.dispose();
+    _thursday.dispose();
+    _friday.dispose();
+    _saturday.dispose();
+    _sunday.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Edit Daily Offers')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            'Configure baseline discount percentages offered to customers dynamically based on the day of the week.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          _dayField(_monday, 'Monday'),
+          _dayField(_tuesday, 'Tuesday'),
+          _dayField(_wednesday, 'Wednesday'),
+          _dayField(_thursday, 'Thursday'),
+          _dayField(_friday, 'Friday'),
+          _dayField(_saturday, 'Saturday'),
+          _dayField(_sunday, 'Sunday'),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: _saving ? null : _save,
+            child: _saving ? const CircularProgressIndicator() : const Text('Save Schedule'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dayField(TextEditingController controller, String day) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          PercentLimitTextInputFormatter(),
+        ],
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.percent_outlined),
+          labelText: '$day Discount %',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final schedule = {
+      'monday': int.tryParse(_monday.text) ?? 10,
+      'tuesday': int.tryParse(_tuesday.text) ?? 15,
+      'wednesday': int.tryParse(_wednesday.text) ?? 20,
+      'thursday': int.tryParse(_thursday.text) ?? 25,
+      'friday': int.tryParse(_friday.text) ?? 30,
+      'saturday': int.tryParse(_saturday.text) ?? 35,
+      'sunday': int.tryParse(_sunday.text) ?? 40,
+    };
+    try {
+      await context.read<AppState>().updateDailyOffers(schedule);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Daily offers updated successfully!')),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update daily offers: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
   }
 }

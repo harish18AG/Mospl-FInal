@@ -137,6 +137,18 @@ class ApiClient {
     await _delete('/api/products/$productId', token: token);
   }
 
+  Future<Map<String, int>> fetchDailyOffers() async {
+    final json = await _getJson('/api/daily-offers');
+    final map = (json['dailyOffers'] as Map? ?? const {}).cast<String, dynamic>();
+    return map.map((key, val) => MapEntry(key, (val as num).round()));
+  }
+
+  Future<Map<String, int>> updateDailyOffers(Map<String, int> schedule, String token) async {
+    final json = await _putJson('/api/daily-offers', schedule, token: token);
+    final map = (json['dailyOffers'] as Map? ?? const {}).cast<String, dynamic>();
+    return map.map((key, val) => MapEntry(key, (val as num).round()));
+  }
+
   Future<List<CartLine>> fetchCart(String token) async {
     final json = await _getJson('/api/cart', token: token);
     return _cartLines(json['items']);
