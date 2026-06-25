@@ -114,7 +114,8 @@ class _PriceSummary extends StatelessWidget {
             const SizedBox(height: 12),
             _row('Subtotal', inr(state.cartSubtotal)),
             _row('Delivery', state.deliveryFee == 0 ? 'Free' : inr(state.deliveryFee)),
-            _row('Coupon savings', '-${inr(state.cartDiscount)}', positive: true),
+            if (state.cartDiscount > 0)
+              _row('Coupon savings', '-${inr(state.cartDiscount)}', positive: true),
             const Divider(height: 24),
             _row('Total', inr(state.cartTotal), bold: true),
           ],
@@ -177,17 +178,142 @@ class CheckoutScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.local_offer_outlined),
-              title: const Text('MOSPL30 applied'),
-              subtitle: Text('You saved ${inr(state.cartDiscount)} on this order.'),
-            ),
-          ),
+          const _CouponSection(),
           const SizedBox(height: 10),
           ...state.cart.map((line) => _CartLineCard(line: line)),
           _PriceSummary(),
         ],
+      ),
+    );
+  }
+}
+
+// ── Interactive coupon entry / applied coupon card ─────────────────────────
+class _CouponSection extends StatefulWidget {
+  const _CouponSection();
+
+  @override
+  State<_CouponSection> createState() => _CouponSectionState();
+}
+
+class _CouponSectionState extends State<_CouponSection> {
+  final _ctrl = TextEditingController();
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _apply() async {
+    final appState = context.read<AppState>();
+    final code = _ctrl.text.trim();
+    if (code.isEmpty) {
+      setState(() => _error = 'Please enter a coupon code');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    await Future<void>.delayed(const Duration(milliseconds: 300)); // tiny UX delay
+    if (!mounted) return;
+    final err = appState.applyCoupon(code);
+    setState(() { _loading = false; _error = err; });
+    if (err == null) _ctrl.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final applied = state.appliedCoupon;
+
+    // ── Applied state ───────────────────────────────────────────────────────
+    if (applied != null) {
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.local_offer, color: Color(0xff12833b)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xffe6f4ea),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xff12833b)),
+                ),
+                child: Text(
+                  applied.code,
+                  style: const TextStyle(
+                    color: Color(0xff12833b),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('applied', style: TextStyle(fontWeight: FontWeight.w500)),
+            ],
+          ),
+          subtitle: Text(
+            'You saved ${inr(state.cartDiscount)} on this order!',
+            style: const TextStyle(color: Color(0xff12833b), fontWeight: FontWeight.w600),
+          ),
+          trailing: TextButton.icon(
+            onPressed: () => context.read<AppState>().removeCoupon(),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Remove'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          ),
+        ),
+      );
+    }
+
+    // ── Entry state ─────────────────────────────────────────────────────────
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.local_offer_outlined, size: 20),
+                const SizedBox(width: 8),
+                const Text('Have a coupon?', style: TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
+                      hintText: 'Enter coupon code (e.g. MOSPL30)',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      errorText: _error,
+                    ),
+                    onSubmitted: (_) => _apply(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: _loading ? null : _apply,
+                    child: _loading
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Apply'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

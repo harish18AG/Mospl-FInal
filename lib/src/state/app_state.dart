@@ -25,6 +25,7 @@ class AppState extends ChangeNotifier {
   final ApiClient _apiClient;
   final List<Product> _allProducts;
   List<Coupon> coupons;
+  Coupon? appliedCoupon;   // currently applied coupon (null = none)
   late List<ProductCategory> categories;
   final _uuid = const Uuid();
 
@@ -171,8 +172,33 @@ class AppState extends ChangeNotifier {
   int get cartCount => cart.fold(0, (total, line) => total + line.quantity);
   int get cartSubtotal => cart.fold(0, (total, line) => total + line.subtotal);
   int get deliveryFee => cartSubtotal >= 595 || cart.isEmpty ? 0 : 49;
-  int get cartDiscount => min(300, (cartSubtotal * 0.08).round());
+  int get cartDiscount {
+    if (appliedCoupon == null) return 0;
+    if (cartSubtotal < appliedCoupon!.minimumAmount) return 0;
+    return min(300, (cartSubtotal * appliedCoupon!.discountPercent / 100).round());
+  }
   int get cartTotal => max(0, cartSubtotal + deliveryFee - cartDiscount);
+
+  /// Apply a coupon by code. Returns an error message, or null on success.
+  String? applyCoupon(String code) {
+    final trimmed = code.trim().toUpperCase();
+    final coupon = coupons.cast<Coupon?>().firstWhere(
+      (c) => c!.code.toUpperCase() == trimmed,
+      orElse: () => null,
+    );
+    if (coupon == null) return 'Invalid coupon code';
+    if (cartSubtotal < coupon.minimumAmount) {
+      return 'Minimum order of ₹${coupon.minimumAmount} required for this coupon';
+    }
+    appliedCoupon = coupon;
+    notifyListeners();
+    return null; // success
+  }
+
+  void removeCoupon() {
+    appliedCoupon = null;
+    notifyListeners();
+  }
   int get unreadNotifications => notifications.where((item) => !item.read).length;
   int get totalRevenue => adminMetrics?.revenue ?? orders.fold(0, (total, order) => total + order.total);
   int get lowStockCount =>
