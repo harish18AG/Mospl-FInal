@@ -178,7 +178,12 @@ class CheckoutScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const _CouponSection(),
+          _CouponSection(
+            appliedCoupon: state.appliedCoupon,
+            cartDiscount: state.cartDiscount,
+            onApply: (code) => context.read<AppState>().applyCoupon(code),
+            onRemove: () => context.read<AppState>().removeCoupon(),
+          ),
           const SizedBox(height: 10),
           ...state.cart.map((line) => _CartLineCard(line: line)),
           _PriceSummary(),
@@ -189,8 +194,20 @@ class CheckoutScreen extends StatelessWidget {
 }
 
 // ── Interactive coupon entry / applied coupon card ─────────────────────────
+// Data is passed as constructor params from CheckoutScreen (which already
+// watches AppState) to avoid double-watch that blanks the body on mobile.
 class _CouponSection extends StatefulWidget {
-  const _CouponSection();
+  const _CouponSection({
+    required this.appliedCoupon,
+    required this.cartDiscount,
+    required this.onApply,
+    required this.onRemove,
+  });
+
+  final Coupon? appliedCoupon;
+  final int cartDiscount;
+  final String? Function(String code) onApply;
+  final VoidCallback onRemove;
 
   @override
   State<_CouponSection> createState() => _CouponSectionState();
@@ -208,24 +225,22 @@ class _CouponSectionState extends State<_CouponSection> {
   }
 
   Future<void> _apply() async {
-    final appState = context.read<AppState>();
     final code = _ctrl.text.trim();
     if (code.isEmpty) {
       setState(() => _error = 'Please enter a coupon code');
       return;
     }
     setState(() { _loading = true; _error = null; });
-    await Future<void>.delayed(const Duration(milliseconds: 300)); // tiny UX delay
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
-    final err = appState.applyCoupon(code);
+    final err = widget.onApply(code);
     setState(() { _loading = false; _error = err; });
     if (err == null) _ctrl.clear();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final applied = state.appliedCoupon;
+    final applied = widget.appliedCoupon;
 
     // ── Applied state ───────────────────────────────────────────────────────
     if (applied != null) {
@@ -256,11 +271,11 @@ class _CouponSectionState extends State<_CouponSection> {
             ],
           ),
           subtitle: Text(
-            'You saved ${inr(state.cartDiscount)} on this order!',
+            'You saved ${inr(widget.cartDiscount)} on this order!',
             style: const TextStyle(color: Color(0xff12833b), fontWeight: FontWeight.w600),
           ),
           trailing: TextButton.icon(
-            onPressed: () => context.read<AppState>().removeCoupon(),
+            onPressed: widget.onRemove,
             icon: const Icon(Icons.close, size: 16),
             label: const Text('Remove'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
