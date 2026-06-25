@@ -192,6 +192,9 @@ class AdminProductsScreen extends StatelessWidget {
 
   void _showStockDialog(BuildContext context, Product product) {
     final stock = TextEditingController(text: product.stock.toString());
+    // Capture BEFORE showDialog — dialog context has no Scaffold ancestor
+    final messenger = ScaffoldMessenger.of(context);
+    final appState = context.read<AppState>();
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -205,8 +208,8 @@ class AdminProductsScreen extends StatelessWidget {
             StockLimitTextInputFormatter(),
           ],
           decoration: const InputDecoration(
-            labelText: 'Stock (max 30)',
-            hintText: 'Enter value 1–30',
+            labelText: 'Stock (1 – 30)',
+            hintText: 'Enter a value between 1 and 30',
           ),
         ),
         actions: [
@@ -217,9 +220,8 @@ class AdminProductsScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               final text = stock.text.trim();
-              // Validate: must not be empty
               if (text.isEmpty) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Please enter a stock value'),
                     backgroundColor: Colors.orange,
@@ -229,16 +231,25 @@ class AdminProductsScreen extends StatelessWidget {
               }
               final val = int.tryParse(text);
               if (val == null) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
-                    content: Text('Invalid number — please enter a valid stock'),
+                    content: Text('Invalid number — enter a valid stock'),
                     backgroundColor: Colors.red,
                   ),
                 );
                 return;
               }
+              if (val < 1) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Stock must be at least 1'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
               if (val > 30) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Stock cannot exceed 30'),
                     backgroundColor: Colors.red,
@@ -247,10 +258,10 @@ class AdminProductsScreen extends StatelessWidget {
                 return;
               }
               dialogContext.pop();
-              context.read<AppState>().updateInventoryStock(
-                    productId: product.productId,
-                    stock: val,
-                  );
+              appState.updateInventoryStock(
+                productId: product.productId,
+                stock: val,
+              );
             },
             child: const Text('Update'),
           ),
@@ -689,6 +700,9 @@ class AdminInventoryScreen extends StatelessWidget {
 
   void _showStockDialog(BuildContext context, Product product) {
     final stock = TextEditingController(text: product.stock.toString());
+    // Capture BEFORE showDialog — dialog context has no Scaffold ancestor
+    final messenger = ScaffoldMessenger.of(context);
+    final appState = context.read<AppState>();
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -702,8 +716,8 @@ class AdminInventoryScreen extends StatelessWidget {
             StockLimitTextInputFormatter(),
           ],
           decoration: const InputDecoration(
-            labelText: 'Stock (max 30)',
-            hintText: 'Enter value 1–30',
+            labelText: 'Stock (1 – 30)',
+            hintText: 'Enter a value between 1 and 30',
           ),
         ),
         actions: [
@@ -714,9 +728,8 @@ class AdminInventoryScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               final text = stock.text.trim();
-              // Validate: must not be empty
               if (text.isEmpty) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Please enter a stock value'),
                     backgroundColor: Colors.orange,
@@ -726,16 +739,25 @@ class AdminInventoryScreen extends StatelessWidget {
               }
               final val = int.tryParse(text);
               if (val == null) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
-                    content: Text('Invalid number — please enter a valid stock'),
+                    content: Text('Invalid number — enter a valid stock'),
                     backgroundColor: Colors.red,
                   ),
                 );
                 return;
               }
+              if (val < 1) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Stock must be at least 1'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
               if (val > 30) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Stock cannot exceed 30'),
                     backgroundColor: Colors.red,
@@ -744,10 +766,10 @@ class AdminInventoryScreen extends StatelessWidget {
                 return;
               }
               dialogContext.pop();
-              context.read<AppState>().updateInventoryStock(
-                    productId: product.productId,
-                    stock: val,
-                  );
+              appState.updateInventoryStock(
+                productId: product.productId,
+                stock: val,
+              );
             },
             child: const Text('Update'),
           ),
