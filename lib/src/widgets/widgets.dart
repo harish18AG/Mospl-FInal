@@ -206,22 +206,27 @@ class ProductCard extends StatelessWidget {
     super.key,
     required this.product,
     this.compact = false,
+    this.heroTagPrefix,
   });
 
   final Product product;
   final bool compact;
+  final String? heroTagPrefix;
 
   @override
   Widget build(BuildContext context) {
     final wished = context.select<AppState, bool>((app) => app.isWishlisted(product.productId));
     final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(product.productId));
     final liveReviewCount = context.select<AppState, int>((app) => app.getProductLiveReviewCount(product.productId));
+    final resolvedHeroTag = heroTagPrefix != null
+        ? '${heroTagPrefix}-${product.productId}'
+        : 'product-${product.productId}';
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
           context.read<AppState>().viewProduct(product);
-          context.push('/product/${product.productId}');
+          context.push('/product/${product.productId}?heroTag=${Uri.encodeComponent(resolvedHeroTag)}');
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,7 +238,7 @@ class ProductCard extends StatelessWidget {
                   child: ProductImage(
                     url: product.thumbnail,
                     fit: BoxFit.contain,
-                    heroTag: 'product-${product.productId}',
+                    heroTag: resolvedHeroTag,
                   ),
                 ),
                 if (product.stock <= 0)
@@ -342,10 +347,16 @@ class ProductCard extends StatelessWidget {
 }
 
 class ProductGrid extends StatelessWidget {
-  const ProductGrid({super.key, required this.products, this.compact = false});
+  const ProductGrid({
+    super.key,
+    required this.products,
+    this.compact = false,
+    this.heroTagPrefix,
+  });
 
   final List<Product> products;
   final bool compact;
+  final String? heroTagPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -370,6 +381,7 @@ class ProductGrid extends StatelessWidget {
               key: ValueKey(product.productId),
               product: product,
               compact: compact,
+              heroTagPrefix: heroTagPrefix,
             );
           },
         );
@@ -379,9 +391,14 @@ class ProductGrid extends StatelessWidget {
 }
 
 class HorizontalProducts extends StatelessWidget {
-  const HorizontalProducts({super.key, required this.products});
+  const HorizontalProducts({
+    super.key,
+    required this.products,
+    this.heroTagPrefix,
+  });
 
   final List<Product> products;
+  final String? heroTagPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -400,6 +417,7 @@ class HorizontalProducts extends StatelessWidget {
               key: ValueKey(product.productId),
               product: product,
               compact: true,
+              heroTagPrefix: heroTagPrefix,
             ),
           );
         },

@@ -484,7 +484,7 @@ Product _buildProduct(_WebsiteProduct record, int index) {
     price: record.price,
     oldPrice: record.oldPrice,
     customDiscount: 0,
-    discountPercentage: ((record.oldPrice - record.price) * 100 / record.oldPrice).round(),
+    discountPercentage: record.oldPrice > 0 ? ((record.oldPrice - record.price) * 100 / record.oldPrice).round() : 0,
     rating: 0,
     reviewCount: record.reviewCount,
     stock: 30,

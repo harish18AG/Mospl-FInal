@@ -144,19 +144,29 @@ class HomeScreen extends StatelessWidget {
               actionLabel: 'View all',
               onAction: () => context.push('/trending'),
             ),
-            HorizontalProducts(products: state.trendingProducts.take(10).toList()),
+            HorizontalProducts(
+              products: state.trendingProducts.take(10).toList(),
+              heroTagPrefix: 'trending',
+            ),
             SectionHeader(
               title: 'Current MOSPL Products',
               actionLabel: 'See more',
               onAction: () => context.push('/recommended'),
             ),
-            ProductGrid(products: state.bestSellers.take(8).toList(), compact: true),
+            ProductGrid(
+              products: state.bestSellers.take(8).toList(),
+              compact: true,
+              heroTagPrefix: 'bestseller',
+            ),
             SectionHeader(
               title: 'More from Online Madras',
               actionLabel: 'Collections',
               onAction: () => context.push('/leather-collections'),
             ),
-            HorizontalProducts(products: state.featuredProducts.take(10).toList()),
+            HorizontalProducts(
+              products: state.featuredProducts.take(10).toList(),
+              heroTagPrefix: 'featured',
+            ),
           ],
         ),
       ),
@@ -361,9 +371,10 @@ class ProductListingScreen extends StatelessWidget {
 }
 
 class ProductDetailScreen extends StatefulWidget {
-  const ProductDetailScreen({super.key, required this.productId});
+  const ProductDetailScreen({super.key, required this.productId, this.heroTag});
 
   final String productId;
+  final String? heroTag;
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
@@ -399,12 +410,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     // ── Live rating computed from Firestore reviews ───────────────────────
     final liveReviews = state.reviewsForProduct(widget.productId);
     final liveReviewCount = liveReviews.length;
-    final liveAvgRating = liveReviewCount == 0
-        ? 0.0
-        : liveReviews.map((r) => r.rating).reduce((a, b) => a + b) / liveReviewCount;
+    final liveAvgRating = liveReviews.isEmpty
+        ? product.rating
+        : liveReviews.fold<double>(0, (sum, r) => sum + r.rating) / liveReviews.length;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Product Details'),
+        title: Text(product.name),
         actions: [
           IconButton(
             onPressed: () => context.read<AppState>().toggleWishlist(product),
@@ -459,7 +471,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   child: ProductImage(
                     url: images[_selectedImage],
                     fit: BoxFit.contain,
-                    heroTag: 'product-${product.productId}',
+                    heroTag: widget.heroTag ?? 'product-${product.productId}',
                   ),
                 ),
               ),
@@ -624,6 +636,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
           HorizontalProducts(
             products: state.allProducts.where((item) => item.category == product.category && item.productId != product.productId).take(10).toList(),
+            heroTagPrefix: 'recommended',
           ),
           const SizedBox(height: 20),
         ],

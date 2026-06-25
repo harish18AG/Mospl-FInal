@@ -357,6 +357,23 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
   bool _sending = false;
 
   @override
+  void initState() {
+    super.initState();
+    _focusNode.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.enter) {
+        final text = _controller.text;
+        if (text.trim().isNotEmpty) {
+          _send(text);
+          _focusNode.requestFocus();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
@@ -409,33 +426,17 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    // Focus + onKeyEvent is needed for Flutter Web — onSubmitted
-                    // alone does NOT fire on Enter key in web builds.
-                    child: Focus(
-                      onKeyEvent: (node, event) {
-                        if (event is KeyDownEvent &&
-                            event.logicalKey == LogicalKeyboardKey.enter) {
-                          final text = _controller.text;
-                          if (text.trim().isNotEmpty) {
-                            _send(text);
-                            _focusNode.requestFocus();
-                          }
-                          return KeyEventResult.handled;
-                        }
-                        return KeyEventResult.ignored;
-                      },
-                      child: TextField(
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        textInputAction: TextInputAction.send,
-                        decoration: const InputDecoration(
-                          hintText: 'Ask for product or order help',
-                        ),
-                        onSubmitted: (text) {
-                          _send(text);
-                          _focusNode.requestFocus();
-                        },
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      textInputAction: TextInputAction.send,
+                      decoration: const InputDecoration(
+                        hintText: 'Ask for product or order help',
                       ),
+                      onSubmitted: (text) {
+                        _send(text);
+                        _focusNode.requestFocus();
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),

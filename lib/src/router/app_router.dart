@@ -39,7 +39,10 @@ class AppRouter {
       GoRoute(path: '/filters', builder: (context, state) => const FiltersScreen()),
       GoRoute(
         path: '/product/:id',
-        builder: (context, state) => ProductDetailScreen(productId: state.pathParameters['id'] ?? ''),
+        builder: (context, state) => ProductDetailScreen(
+          productId: state.pathParameters['id'] ?? '',
+          heroTag: state.uri.queryParameters['heroTag'],
+        ),
       ),
       GoRoute(
         path: '/gallery/:id',
