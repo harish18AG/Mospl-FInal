@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -408,16 +409,33 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      textInputAction: TextInputAction.send,
-                      decoration: const InputDecoration(hintText: 'Ask for product or order help'),
-                      onSubmitted: (text) {
-                        _send(text);
-                        // Re-focus so user can type the next message immediately
-                        _focusNode.requestFocus();
+                    // Focus + onKeyEvent is needed for Flutter Web — onSubmitted
+                    // alone does NOT fire on Enter key in web builds.
+                    child: Focus(
+                      onKeyEvent: (node, event) {
+                        if (event is KeyDownEvent &&
+                            event.logicalKey == LogicalKeyboardKey.enter) {
+                          final text = _controller.text;
+                          if (text.trim().isNotEmpty) {
+                            _send(text);
+                            _focusNode.requestFocus();
+                          }
+                          return KeyEventResult.handled;
+                        }
+                        return KeyEventResult.ignored;
                       },
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        textInputAction: TextInputAction.send,
+                        decoration: const InputDecoration(
+                          hintText: 'Ask for product or order help',
+                        ),
+                        onSubmitted: (text) {
+                          _send(text);
+                          _focusNode.requestFocus();
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
