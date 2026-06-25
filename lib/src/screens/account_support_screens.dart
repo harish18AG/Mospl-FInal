@@ -352,11 +352,13 @@ class AIChatbotScreen extends StatefulWidget {
 
 class _AIChatbotScreenState extends State<AIChatbotScreen> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   bool _sending = false;
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -408,8 +410,14 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
+                      focusNode: _focusNode,
+                      textInputAction: TextInputAction.send,
                       decoration: const InputDecoration(hintText: 'Ask for product or order help'),
-                      onSubmitted: _send,
+                      onSubmitted: (text) {
+                        _send(text);
+                        // Re-focus so user can type the next message immediately
+                        _focusNode.requestFocus();
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
