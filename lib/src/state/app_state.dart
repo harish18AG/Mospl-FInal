@@ -728,7 +728,8 @@ class AppState extends ChangeNotifier {
   }
 
   Product productById(String id) {
-    return _allProducts.firstWhere((product) => product.productId == id, orElse: () => _allProducts.first);
+    final raw = _allProducts.firstWhere((product) => product.productId == id, orElse: () => _allProducts.first);
+    return applyDynamicPriceToProduct(raw);
   }
 
   void viewProduct(Product product) {
@@ -1664,7 +1665,21 @@ class AppState extends ChangeNotifier {
         .doc('daily_offers')
         .snapshots()
         .listen((snapshot) {
-      if (!snapshot.exists) return;
+      if (!snapshot.exists) {
+        firestore.FirebaseFirestore.instance
+            .collection('settings')
+            .doc('daily_offers')
+            .set({
+          'monday': 10,
+          'tuesday': 15,
+          'wednesday': 20,
+          'thursday': 25,
+          'friday': 30,
+          'saturday': 35,
+          'sunday': 40,
+        });
+        return;
+      }
       final data = snapshot.data();
       if (data == null) return;
       
@@ -2185,7 +2200,7 @@ class AppState extends ChangeNotifier {
 
   AppOrder _orderFromBackend(Map<String, dynamic> map, {AppOrder? fallback}) {
     final rawItems = (map['items'] as List? ?? const []).whereType<Map>();
-    final items = rawItems.map((item) => _cartLineFromBackend(item.cast<String, dynamic>())).toList();
+    final items = rawItems.map((item) => _cartLineFromBackend(item.cast<String, dynamic>(), isHistory: true)).toList();
     final rawAddress = map['address'];
     final address = rawAddress is Map
         ? ShippingAddress.fromMap(rawAddress.cast<String, dynamic>())
@@ -2204,16 +2219,22 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  CartLine _cartLineFromBackend(Map<String, dynamic> map) {
+  CartLine _cartLineFromBackend(Map<String, dynamic> map, {bool isHistory = false}) {
     final productId = (map['productId'] ?? '').toString();
     final index = _allProducts.indexWhere((product) => product.productId == productId);
-    final source = index >= 0 ? _allProducts[index] : _allProducts.first;
+    var source = index >= 0 ? _allProducts[index] : _allProducts.first;
+    if (!isHistory) {
+      source = applyDynamicPriceToProduct(source);
+    }
     final name = (map['name'] ?? '').toString();
     final thumbnail = (map['thumbnail'] ?? '').toString();
     final product = source.copyWith(
       productId: productId.isEmpty ? source.productId : productId,
       name: name.isEmpty ? source.name : name,
-      price: _intValue(map['price'], source.price),
+      price: isHistory ? _intValue(map['price'], source.price) : source.price,
+      discountPercentage: isHistory
+          ? _intValue(map['discountPercentage'] ?? map['discount'] ?? source.discountPercentage, source.discountPercentage)
+          : source.discountPercentage,
       thumbnail: thumbnail.isEmpty ? source.thumbnail : thumbnail,
       color: (map['color'] ?? source.color).toString(),
       size: (map['size'] ?? source.size).toString(),
