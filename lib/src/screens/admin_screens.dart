@@ -191,83 +191,22 @@ class AdminProductsScreen extends StatelessWidget {
   }
 
   void _showStockDialog(BuildContext context, Product product) {
-    final stock = TextEditingController(text: product.stock.toString());
     // Capture BEFORE showDialog — dialog context has no Scaffold ancestor
     final messenger = ScaffoldMessenger.of(context);
     final appState = context.read<AppState>();
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Update Stock - ${product.sku}'),
-        content: TextField(
-          controller: stock,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            StockLimitTextInputFormatter(),
-          ],
-          decoration: const InputDecoration(
-            labelText: 'Stock (1 – 30)',
-            hintText: 'Enter a value between 1 and 30',
-          ),
+      // _StockDialog is a StatefulWidget that owns the TextEditingController
+      // so Flutter disposes the TextField before the controller — no crash.
+      builder: (_) => _StockDialog(
+        product: product,
+        messenger: messenger,
+        onConfirm: (val) => appState.updateInventoryStock(
+          productId: product.productId,
+          stock: val,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => dialogContext.pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = stock.text.trim();
-              if (text.isEmpty) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a stock value'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-              final val = int.tryParse(text);
-              if (val == null) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Invalid number — enter a valid stock'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-              if (val < 1) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Stock must be at least 1'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-              if (val > 30) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Stock cannot exceed 30'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-              dialogContext.pop();
-              appState.updateInventoryStock(
-                productId: product.productId,
-                stock: val,
-              );
-            },
-            child: const Text('Update'),
-          ),
-        ],
       ),
-    ).whenComplete(stock.dispose);
+    );
   }
 }
 
@@ -699,83 +638,20 @@ class AdminInventoryScreen extends StatelessWidget {
   }
 
   void _showStockDialog(BuildContext context, Product product) {
-    final stock = TextEditingController(text: product.stock.toString());
     // Capture BEFORE showDialog — dialog context has no Scaffold ancestor
     final messenger = ScaffoldMessenger.of(context);
     final appState = context.read<AppState>();
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Update Stock — ${product.sku}'),
-        content: TextField(
-          controller: stock,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            StockLimitTextInputFormatter(),
-          ],
-          decoration: const InputDecoration(
-            labelText: 'Stock (1 – 30)',
-            hintText: 'Enter a value between 1 and 30',
-          ),
+      builder: (_) => _StockDialog(
+        product: product,
+        messenger: messenger,
+        onConfirm: (val) => appState.updateInventoryStock(
+          productId: product.productId,
+          stock: val,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => dialogContext.pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = stock.text.trim();
-              if (text.isEmpty) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a stock value'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-              final val = int.tryParse(text);
-              if (val == null) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Invalid number — enter a valid stock'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-              if (val < 1) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Stock must be at least 1'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-              if (val > 30) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Stock cannot exceed 30'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-              dialogContext.pop();
-              appState.updateInventoryStock(
-                productId: product.productId,
-                stock: val,
-              );
-            },
-            child: const Text('Update'),
-          ),
-        ],
       ),
-    ).whenComplete(stock.dispose);
+    );
   }
 }
 
@@ -1072,5 +948,121 @@ class _AdminDailyOffersScreenState extends State<AdminDailyOffersScreen> {
         setState(() => _saving = false);
       }
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared stock update dialog — StatefulWidget so the TextEditingController
+// is owned by the widget and disposed by Flutter in the correct order
+// (TextField is deactivated before dispose() is called on the controller).
+// This prevents the `_dependents.isEmpty` crash when pressing the back button.
+// ---------------------------------------------------------------------------
+class _StockDialog extends StatefulWidget {
+  const _StockDialog({
+    required this.product,
+    required this.messenger,
+    required this.onConfirm,
+  });
+
+  final Product product;
+  final ScaffoldMessengerState messenger;
+  final void Function(int stock) onConfirm;
+
+  @override
+  State<_StockDialog> createState() => _StockDialogState();
+}
+
+class _StockDialogState extends State<_StockDialog> {
+  late final TextEditingController _stock;
+
+  @override
+  void initState() {
+    super.initState();
+    _stock = TextEditingController(text: widget.product.stock.toString());
+  }
+
+  @override
+  void dispose() {
+    _stock.dispose(); // Flutter calls this AFTER the TextField is disposed ✅
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _stock.text.trim();
+
+    if (text.isEmpty) {
+      widget.messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a stock value'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final val = int.tryParse(text);
+    if (val == null) {
+      widget.messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Invalid number — enter a valid stock'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (val < 1) {
+      widget.messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Stock must be at least 1'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (val > 30) {
+      widget.messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Stock cannot exceed 30'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).pop();
+    widget.onConfirm(val);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Update Stock — ${widget.product.sku}'),
+      content: TextField(
+        controller: _stock,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          StockLimitTextInputFormatter(),
+        ],
+        decoration: const InputDecoration(
+          labelText: 'Stock (1 – 30)',
+          hintText: 'Enter a value between 1 and 30',
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: const Text('Update'),
+        ),
+      ],
+    );
   }
 }
