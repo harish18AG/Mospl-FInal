@@ -1949,7 +1949,7 @@ class AppState extends ChangeNotifier {
           );
           inventory.removeWhere((entry) => entry.productId == productId);
           inventory.add(item);
-          notifyListeners();
+          if (hasListeners) notifyListeners();
         } catch (_) {
           // Silently ignore Render backend failures; Firebase is our source of truth
         }

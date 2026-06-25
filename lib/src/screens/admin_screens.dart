@@ -198,21 +198,51 @@ class AdminProductsScreen extends StatelessWidget {
         title: Text('Update Stock - ${product.sku}'),
         content: TextField(
           controller: stock,
+          autofocus: true,
           keyboardType: TextInputType.number,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             StockLimitTextInputFormatter(),
           ],
-          decoration: const InputDecoration(labelText: 'Stock'),
+          decoration: const InputDecoration(
+            labelText: 'Stock (max 30)',
+            hintText: 'Enter value 1–30',
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => dialogContext.pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => dialogContext.pop(),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
-              final val = int.tryParse(stock.text) ?? product.stock;
+              final text = stock.text.trim();
+              // Validate: must not be empty
+              if (text.isEmpty) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a stock value'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              final val = int.tryParse(text);
+              if (val == null) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Invalid number — please enter a valid stock'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
               if (val > 30) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('you cannot update more than 30')),
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Stock cannot exceed 30'),
+                    backgroundColor: Colors.red,
+                  ),
                 );
                 return;
               }
@@ -662,24 +692,54 @@ class AdminInventoryScreen extends StatelessWidget {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(product.sku),
+        title: Text('Update Stock — ${product.sku}'),
         content: TextField(
           controller: stock,
+          autofocus: true,
           keyboardType: TextInputType.number,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             StockLimitTextInputFormatter(),
           ],
-          decoration: const InputDecoration(labelText: 'Stock'),
+          decoration: const InputDecoration(
+            labelText: 'Stock (max 30)',
+            hintText: 'Enter value 1–30',
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => dialogContext.pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => dialogContext.pop(),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
-              final val = int.tryParse(stock.text) ?? product.stock;
+              final text = stock.text.trim();
+              // Validate: must not be empty
+              if (text.isEmpty) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a stock value'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              final val = int.tryParse(text);
+              if (val == null) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Invalid number — please enter a valid stock'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
               if (val > 30) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('you cannot update more than 30')),
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Stock cannot exceed 30'),
+                    backgroundColor: Colors.red,
+                  ),
                 );
                 return;
               }
