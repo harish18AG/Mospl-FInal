@@ -27,6 +27,7 @@ class ShopShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
     final cartCount = context.select<AppState, int>((app) => app.cartCount);
+    debugPrint('CartIcon build');
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
@@ -70,6 +71,8 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('HomeScreen build');
+    debugPrint('HomePage build');
     final unreadNotifications = context.select<AppState, int>((app) => app.unreadNotifications);
     final categories = context.select<AppState, List<ProductCategory>>((app) => app.categories);
     final trendingProducts = context.select<AppState, List<Product>>((app) => app.trendingProducts);

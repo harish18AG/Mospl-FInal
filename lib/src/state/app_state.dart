@@ -77,9 +77,29 @@ class AppState extends ChangeNotifier {
   AdminMetrics? adminMetrics;
 
   List<Product>? _cachedProcessedProducts;
+  List<Product>? _cachedFeaturedProducts;
+  List<Product>? _cachedTrendingProducts;
+  List<Product>? _cachedBestSellers;
+  List<Product>? _cachedWishlistProducts;
+  List<Product>? _cachedRecommendations;
+  List<Product>? _cachedVisibleProducts;
 
   void _invalidateProductsCache() {
     _cachedProcessedProducts = null;
+    _cachedFeaturedProducts = null;
+    _cachedTrendingProducts = null;
+    _cachedBestSellers = null;
+    _cachedWishlistProducts = null;
+    _cachedRecommendations = null;
+    _cachedVisibleProducts = null;
+  }
+
+  void _invalidateWishlistCache() {
+    _cachedWishlistProducts = null;
+  }
+
+  void _invalidateVisibleProductsCache() {
+    _cachedVisibleProducts = null;
   }
 
   Map<String, int> dailyOffers = {
@@ -124,61 +144,83 @@ class AppState extends ChangeNotifier {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   List<Product> get visibleProducts {
-    Iterable<Product> result = allProducts;
-    final query = searchQuery.trim().toLowerCase();
-    if (query.isNotEmpty) {
-      result = result.where((product) {
-        final text =
-            '${product.name} ${product.category} ${product.subcategory} ${product.color} ${product.material}'
-                .toLowerCase();
-        return text.contains(query);
-      });
-    }
-    if (selectedCategory != null && selectedCategory!.isNotEmpty) {
-      result = result.where((product) => product.category == selectedCategory);
-    }
-    if (minPrice != null) result = result.where((product) => product.price >= minPrice!);
-    if (maxPrice != null) result = result.where((product) => product.price <= maxPrice!);
-
-    final list = result.toList();
-    switch (sortOption) {
-      case 'Price: Low to High':
-        list.sort((a, b) => a.price.compareTo(b.price));
-      case 'Price: High to Low':
-        list.sort((a, b) => b.price.compareTo(a.price));
-      case 'Top Rated':
-        list.sort((a, b) => getProductLiveRating(b.productId).compareTo(getProductLiveRating(a.productId)));
-      case 'Newest':
-        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      default:
-        list.sort((a, b) {
-          final aScore = (a.isBestSeller ? 2 : 0) + (a.isTrending ? 1 : 0);
-          final bScore = (b.isBestSeller ? 2 : 0) + (b.isTrending ? 1 : 0);
-          return bScore.compareTo(aScore);
+    if (_cachedVisibleProducts == null) {
+      Iterable<Product> result = allProducts;
+      final query = searchQuery.trim().toLowerCase();
+      if (query.isNotEmpty) {
+        result = result.where((product) {
+          final text =
+              '${product.name} ${product.category} ${product.subcategory} ${product.color} ${product.material}'
+                  .toLowerCase();
+          return text.contains(query);
         });
+      }
+      if (selectedCategory != null && selectedCategory!.isNotEmpty) {
+        result = result.where((product) => product.category == selectedCategory);
+      }
+      if (minPrice != null) result = result.where((product) => product.price >= minPrice!);
+      if (maxPrice != null) result = result.where((product) => product.price <= maxPrice!);
+
+      final list = result.toList();
+      switch (sortOption) {
+        case 'Price: Low to High':
+          list.sort((a, b) => a.price.compareTo(b.price));
+        case 'Price: High to Low':
+          list.sort((a, b) => b.price.compareTo(a.price));
+        case 'Top Rated':
+          list.sort((a, b) => getProductLiveRating(b.productId).compareTo(getProductLiveRating(a.productId)));
+        case 'Newest':
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        default:
+          list.sort((a, b) {
+            final aScore = (a.isBestSeller ? 2 : 0) + (a.isTrending ? 1 : 0);
+            final bScore = (b.isBestSeller ? 2 : 0) + (b.isTrending ? 1 : 0);
+            return bScore.compareTo(aScore);
+          });
+      }
+      _cachedVisibleProducts = List.unmodifiable(list);
     }
-    return list;
+    return _cachedVisibleProducts!;
   }
 
   List<Product> get featuredProducts {
-    final flagged = allProducts.where((p) => p.isFeatured).take(16).toList();
-    return flagged.isEmpty ? allProducts.take(16).toList() : flagged;
+    if (_cachedFeaturedProducts == null) {
+      final flagged = allProducts.where((p) => p.isFeatured).take(16).toList();
+      _cachedFeaturedProducts = List.unmodifiable(flagged.isEmpty ? allProducts.take(16).toList() : flagged);
+    }
+    return _cachedFeaturedProducts!;
   }
 
   List<Product> get trendingProducts {
-    final flagged = allProducts.where((p) => p.isTrending).take(24).toList();
-    return flagged.isEmpty ? allProducts.take(24).toList() : flagged;
+    if (_cachedTrendingProducts == null) {
+      final flagged = allProducts.where((p) => p.isTrending).take(24).toList();
+      _cachedTrendingProducts = List.unmodifiable(flagged.isEmpty ? allProducts.take(24).toList() : flagged);
+    }
+    return _cachedTrendingProducts!;
   }
 
   List<Product> get bestSellers {
-    final flagged = allProducts.where((p) => p.isBestSeller).take(16).toList();
-    return flagged.isEmpty ? allProducts.take(16).toList() : flagged;
+    if (_cachedBestSellers == null) {
+      final flagged = allProducts.where((p) => p.isBestSeller).take(16).toList();
+      _cachedBestSellers = List.unmodifiable(flagged.isEmpty ? allProducts.take(16).toList() : flagged);
+    }
+    return _cachedBestSellers!;
   }
-  List<Product> get wishlistProducts => allProducts.where((p) => wishlist.contains(p.productId)).toList();
+
+  List<Product> get wishlistProducts {
+    if (_cachedWishlistProducts == null) {
+      _cachedWishlistProducts = List.unmodifiable(allProducts.where((p) => wishlist.contains(p.productId)).toList());
+    }
+    return _cachedWishlistProducts!;
+  }
+
   List<Product> get recommendations {
-    final seen = recentlyViewed.map((p) => p.category).toSet();
-    final pool = seen.isEmpty ? trendingProducts : allProducts.where((p) => seen.contains(p.category)).toList();
-    return pool.take(24).toList();
+    if (_cachedRecommendations == null) {
+      final seen = recentlyViewed.map((p) => p.category).toSet();
+      final pool = seen.isEmpty ? trendingProducts : allProducts.where((p) => seen.contains(p.category)).toList();
+      _cachedRecommendations = List.unmodifiable(pool.take(24).toList());
+    }
+    return _cachedRecommendations!;
   }
 
   int get cartCount => cart.fold(0, (total, line) => total + line.quantity);
@@ -610,6 +652,7 @@ class AppState extends ChangeNotifier {
     await prefs.remove('userName');
     await prefs.remove('userRole');
     await prefs.remove('backendToken');
+    _invalidateProductsCache();
     notifyListeners();
   }
 
@@ -662,6 +705,7 @@ class AppState extends ChangeNotifier {
       wishlist
         ..clear()
         ..addAll(ids);
+      _invalidateWishlistCache();
       notifyListeners();
     }, onError: (_) {/* silently ignore stream errors */});
   }
@@ -715,22 +759,26 @@ class AppState extends ChangeNotifier {
 
   void updateSearch(String value) {
     searchQuery = value;
+    _invalidateVisibleProductsCache();
     notifyListeners();
   }
 
   void setCategory(String? value) {
     selectedCategory = value;
+    _invalidateVisibleProductsCache();
     notifyListeners();
   }
 
   void setSort(String value) {
     sortOption = value;
+    _invalidateVisibleProductsCache();
     notifyListeners();
   }
 
   void setPriceFilter(int? min, int? max) {
     minPrice = min;
     maxPrice = max;
+    _invalidateVisibleProductsCache();
     notifyListeners();
   }
 
@@ -739,6 +787,7 @@ class AppState extends ChangeNotifier {
     minPrice = null;
     maxPrice = null;
     sortOption = 'Recommended';
+    _invalidateVisibleProductsCache();
     notifyListeners();
   }
 
@@ -852,6 +901,7 @@ class AppState extends ChangeNotifier {
     } else {
       _pushNotification('Wishlist updated', '${product.name} saved for later.');
     }
+    _invalidateWishlistCache();
     notifyListeners();
 
     if (_firebaseUid != null) {

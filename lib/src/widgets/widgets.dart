@@ -215,6 +215,7 @@ class ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('ProductCard build: ${product.productId}');
     final wished = context.select<AppState, bool>((app) => app.isWishlisted(product.productId));
     final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(product.productId));
     final liveReviewCount = context.select<AppState, int>((app) => app.getProductLiveReviewCount(product.productId));
@@ -276,7 +277,12 @@ class ProductCard extends StatelessWidget {
                   child: IconButton.filledTonal(
                     visualDensity: VisualDensity.compact,
                     onPressed: () => context.read<AppState>().toggleWishlist(product),
-                    icon: Icon(wished ? Icons.favorite : Icons.favorite_border),
+                    icon: Builder(
+                      builder: (context) {
+                        debugPrint('WishlistIcon build: ${product.productId}');
+                        return Icon(wished ? Icons.favorite : Icons.favorite_border);
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -305,7 +311,13 @@ class ProductCard extends StatelessWidget {
                         size: 16,
                       ),
                       const SizedBox(width: 3),
-                      Text(liveRating > 0 ? '${liveRating.toStringAsFixed(1)} ($liveReviewCount)' : 'No Rating yet ($liveReviewCount)'),
+                      Expanded(
+                        child: Text(
+                          liveRating > 0 ? '${liveRating.toStringAsFixed(1)} ($liveReviewCount)' : 'No Rating yet ($liveReviewCount)',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -360,6 +372,8 @@ class ProductGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('ProductGrid build');
+    debugPrint('Grid build');
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mospl/src/models.dart';
 import 'package:mospl/src/screens/checkout_screens.dart';
+import 'package:mospl/src/screens/shop_screens.dart';
 import 'package:mospl/src/widgets/widgets.dart';
 
 void main() {
@@ -300,5 +301,45 @@ void main() {
     final customProduct = state.applyDynamicPriceToProduct(p.copyWith(customDiscount: 50));
     expect(customProduct.discountPercentage, 50);
     expect(customProduct.price, 500);
+  });
+
+  testWidgets('Rebuild test for Cart/Wishlist updates', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1200, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final state = AppState();
+    state.notificationsEnabled = false;
+    
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: state,
+        child: const MaterialApp(
+          home: HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final cartButton = find.byIcon(Icons.add_shopping_cart).first;
+    await tester.ensureVisible(cartButton);
+    await tester.pumpAndSettle();
+
+    debugPrint('--- START CART TAP TEST ---');
+    await tester.tap(cartButton);
+    await tester.pump();
+    debugPrint('--- END CART TAP TEST ---');
+
+    debugPrint('--- START WISHLIST TAP TEST ---');
+    final wishlistButton = find.byIcon(Icons.favorite_border).first;
+    await tester.ensureVisible(wishlistButton);
+    await tester.pumpAndSettle();
+    await tester.tap(wishlistButton);
+    await tester.pump();
+    debugPrint('--- END WISHLIST TAP TEST ---');
   });
 }
