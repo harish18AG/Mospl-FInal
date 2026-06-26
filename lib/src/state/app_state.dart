@@ -48,6 +48,7 @@ class AppState extends ChangeNotifier {
   StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _allReviewsStream;
   StreamSubscription<firestore.DocumentSnapshot<Map<String, dynamic>>>? _dailyOffersStream;
   StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _productsStream;
+  StreamSubscription<firestore.QuerySnapshot<Map<String, dynamic>>>? _couponsStream;
   String? _realtimeSyncUid; // tracks which UID streams are active for
 
   String searchQuery = '';
@@ -74,6 +75,12 @@ class AppState extends ChangeNotifier {
   final List<int> revenueByDay = [];
   final List<Map<String, dynamic>> salesByCategory = [];
   AdminMetrics? adminMetrics;
+
+  List<Product>? _cachedProcessedProducts;
+
+  void _invalidateProductsCache() {
+    _cachedProcessedProducts = null;
+  }
 
   Map<String, int> dailyOffers = {
     'monday': 10,
@@ -104,7 +111,12 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  List<Product> get allProducts => List.unmodifiable(_allProducts.map(applyDynamicPriceToProduct).toList());
+  List<Product> get allProducts {
+    if (_cachedProcessedProducts == null) {
+      _cachedProcessedProducts = List.unmodifiable(_allProducts.map(applyDynamicPriceToProduct).toList());
+    }
+    return _cachedProcessedProducts!;
+  }
 
   /// Returns all reviews for a given [productId], newest first.
   List<Review> reviewsForProduct(String productId) =>
@@ -249,6 +261,7 @@ class AppState extends ChangeNotifier {
       // Merge any admin-saved Firestore products on top of the catalog
       await _mergeFirestoreProducts();
       catalogLoading = false;
+      _invalidateProductsCache();
       notifyListeners();
     }
   }
@@ -312,6 +325,7 @@ class AppState extends ChangeNotifier {
         categories = buildCategories(_allProducts);
       }
     } catch (_) {}
+    _invalidateProductsCache();
   }
 
   Future<void> restoreSession() async {
@@ -342,6 +356,7 @@ class AppState extends ChangeNotifier {
     }
     subscribeAllReviews();
     subscribeDailyOffers();
+    subscribeCoupons();
     subscribeProducts();
     notifyListeners();
   }
@@ -1440,6 +1455,7 @@ class AppState extends ChangeNotifier {
         }
       }
     }
+    _invalidateProductsCache();
   }
 
   Future<Map<String, dynamic>> createRazorpayOrder(AppOrder order) async {
@@ -1622,6 +1638,7 @@ class AppState extends ChangeNotifier {
           rating: avgRating,
           reviewCount: count,
         );
+        _invalidateProductsCache();
       }
     } catch (e) {
       debugPrint('Failed to update product rating/reviewCount in Firestore: $e');
@@ -1689,10 +1706,40 @@ class AppState extends ChangeNotifier {
       });
       if (newOffers.isNotEmpty) {
         dailyOffers = newOffers;
+        _invalidateProductsCache();
         notifyListeners();
       }
     }, onError: (error) {
       debugPrint('Firestore daily_offers document stream error: $error');
+    });
+  }
+
+  void subscribeCoupons() {
+    if (!_firebaseReady) return;
+    _couponsStream?.cancel();
+    _couponsStream = firestore.FirebaseFirestore.instance
+        .collection('coupons')
+        .snapshots()
+        .listen((snapshot) async {
+      if (snapshot.docs.isEmpty) {
+        final batch = firestore.FirebaseFirestore.instance.batch();
+        for (final coupon in buildCoupons()) {
+          final docRef = firestore.FirebaseFirestore.instance.collection('coupons').doc(coupon.code);
+          batch.set(docRef, {
+            'code': coupon.code,
+            'description': coupon.description,
+            'discountPercent': coupon.discountPercent,
+            'minimumAmount': coupon.minimumAmount,
+          });
+        }
+        await batch.commit();
+        return;
+      }
+      final loaded = snapshot.docs.map((doc) => Coupon.fromMap(doc.data())).toList();
+      coupons = loaded;
+      notifyListeners();
+    }, onError: (error) {
+      debugPrint('Firestore coupons collection stream error: $error');
     });
   }
 
@@ -1759,6 +1806,7 @@ class AppState extends ChangeNotifier {
       }
       if (changed) {
         categories = buildCategories(_allProducts);
+        _invalidateProductsCache();
         notifyListeners();
       }
     }, onError: (error) {
@@ -1949,6 +1997,7 @@ class AppState extends ChangeNotifier {
     );
     inventory.removeWhere((entry) => entry.productId == productId);
     inventory.add(updatedItem);
+    _invalidateProductsCache();
     notifyListeners();
 
     // 2. Persist to Firebase directly (Firebase is the primary stock db)
@@ -2311,6 +2360,7 @@ class AppState extends ChangeNotifier {
       _allProducts.insert(0, productToStoreClamped);
     }
     categories = buildCategories(_allProducts);
+    _invalidateProductsCache();
     notifyListeners();
   }
 
@@ -2335,6 +2385,7 @@ class AppState extends ChangeNotifier {
     }
     _allProducts.removeWhere((product) => product.productId == productId);
     categories = buildCategories(_allProducts);
+    _invalidateProductsCache();
     notifyListeners();
   }
 
@@ -2532,6 +2583,7 @@ class AppState extends ChangeNotifier {
         _applyAuthSession(await _apiClient.firebaseAuthSession(idToken));
         if (backendToken != null) await _persistUser();
         subscribeDailyOffers();
+        subscribeCoupons();
         subscribeProducts();
         return; // success
       } catch (_) {
@@ -2717,6 +2769,7 @@ class AppState extends ChangeNotifier {
       try {
         final updated = await _apiClient.updateDailyOffers(schedule, backendToken!);
         dailyOffers = updated;
+        _invalidateProductsCache();
         notifyListeners();
       } catch (error) {
         catalogError = error.toString();
@@ -2724,6 +2777,7 @@ class AppState extends ChangeNotifier {
       }
     } else {
       dailyOffers = schedule;
+      _invalidateProductsCache();
       notifyListeners();
     }
   }

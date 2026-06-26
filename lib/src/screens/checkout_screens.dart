@@ -287,9 +287,9 @@ class _CouponSectionState extends State<_CouponSection> {
     // ── Entry state ─────────────────────────────────────────────────────────
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
@@ -298,34 +298,26 @@ class _CouponSectionState extends State<_CouponSection> {
                 const Text('Have a coupon?', style: TextStyle(fontWeight: FontWeight.w700)),
               ],
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _ctrl,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                hintText: 'Enter coupon code (e.g. MOSPL30)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                errorText: _error,
+              ),
+              onSubmitted: (_) => _apply(),
+            ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _ctrl,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
-                      hintText: 'Enter coupon code (e.g. MOSPL30)',
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      errorText: _error,
-                    ),
-                    onSubmitted: (_) => _apply(),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _apply,
-                    child: _loading
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Apply'),
-                  ),
-                ),
-              ],
+            SizedBox(
+              height: 44,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _apply,
+                child: _loading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Apply Coupon'),
+              ),
             ),
           ],
         ),
@@ -831,13 +823,13 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen>
           ScaleTransition(scale: _scaleAnim, child: Container(
             width: 120, height: 120,
             decoration: BoxDecoration(color: Colors.green.shade600, shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.4), blurRadius: 30, spreadRadius: 8)]),
+              boxShadow: [BoxShadow(color: Colors.green.withValues(alpha: 0.4), blurRadius: 30, spreadRadius: 8)]),
             child: const Icon(Icons.check_rounded, color: Colors.white, size: 72),
           )),
           const SizedBox(height: 28),
           Text('Order Placed!', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900, color: Colors.green.shade700)),
           const SizedBox(height: 8),
-          Text('Payment of \ successful', style: theme.textTheme.bodyLarge),
+          Text('Payment successful', style: theme.textTheme.bodyLarge),
           const SizedBox(height: 4),
           Text(order.orderId, style: theme.textTheme.bodySmall?.copyWith(color: cs.outline)),
           const SizedBox(height: 32),
@@ -887,14 +879,14 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen>
           decoration: BoxDecoration(
             gradient: const LinearGradient(colors: [Color(0xff1a1a2e), Color(0xff16213e)], begin: Alignment.topLeft, end: Alignment.bottomRight),
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               const Icon(Icons.wifi, color: Colors.white54, size: 24),
               Row(children: [
                 Container(width: 28, height: 28, decoration: const BoxDecoration(color: Color(0xffEB001B), shape: BoxShape.circle)),
-                Transform.translate(offset: const Offset(-10, 0), child: Container(width: 28, height: 28, decoration: BoxDecoration(color: const Color(0xffF79E1B).withOpacity(0.85), shape: BoxShape.circle))),
+                Transform.translate(offset: const Offset(-10, 0), child: Container(width: 28, height: 28, decoration: BoxDecoration(color: const Color(0xffF79E1B).withValues(alpha: 0.85), shape: BoxShape.circle))),
               ]),
             ]),
             const Spacer(),
@@ -938,7 +930,7 @@ class _RazorpayPaymentScreenState extends State<RazorpayPaymentScreen>
               : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.lock, size: 20),
                   const SizedBox(width: 8),
-                  Text('Pay \ Now', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text('Pay Now', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ]),
         )),
         const SizedBox(height: 12),

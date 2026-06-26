@@ -219,7 +219,7 @@ class ProductCard extends StatelessWidget {
     final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(product.productId));
     final liveReviewCount = context.select<AppState, int>((app) => app.getProductLiveReviewCount(product.productId));
     final resolvedHeroTag = heroTagPrefix != null
-        ? '${heroTagPrefix}-${product.productId}'
+        ? '$heroTagPrefix-${product.productId}'
         : 'product-${product.productId}';
     return Card(
       clipBehavior: Clip.antiAlias,

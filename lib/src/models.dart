@@ -233,6 +233,46 @@ class Product {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Product) return false;
+
+    if (galleryImages.length != other.galleryImages.length) return false;
+    for (int i = 0; i < galleryImages.length; i++) {
+      if (galleryImages[i] != other.galleryImages[i]) return false;
+    }
+
+    return productId == other.productId &&
+        name == other.name &&
+        category == other.category &&
+        subcategory == other.subcategory &&
+        price == other.price &&
+        oldPrice == other.oldPrice &&
+        customDiscount == other.customDiscount &&
+        discountPercentage == other.discountPercentage &&
+        rating == other.rating &&
+        reviewCount == other.reviewCount &&
+        stock == other.stock &&
+        sku == other.sku &&
+        shortDescription == other.shortDescription &&
+        description == other.description &&
+        material == other.material &&
+        size == other.size &&
+        color == other.color &&
+        deliveryInfo == other.deliveryInfo &&
+        returnPolicy == other.returnPolicy &&
+        warranty == other.warranty &&
+        sourceUrl == other.sourceUrl &&
+        thumbnail == other.thumbnail &&
+        isFeatured == other.isFeatured &&
+        isTrending == other.isTrending &&
+        isBestSeller == other.isBestSeller;
+  }
+
+  @override
+  int get hashCode => productId.hashCode;
 }
 
 class ProductCategory {

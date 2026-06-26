@@ -320,26 +320,41 @@ class CouponsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final coupons = context.watch<AppState>().coupons;
+    final state = context.watch<AppState>();
+    final cartSubtotal = state.cartSubtotal;
+    // Only show the coupon when order meets the minimum order amount
+    final eligibleCoupons = state.coupons.where((coupon) => cartSubtotal >= coupon.minimumAmount).toList();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Coupons')),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(12),
-        itemCount: coupons.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          final coupon = coupons[index];
-          return Card(
-            child: ListTile(
-              leading: const Icon(Icons.confirmation_number_outlined),
-              title: Text(coupon.code, style: const TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: Text('${coupon.description}\nMinimum order ${inr(coupon.minimumAmount)}'),
-              isThreeLine: true,
-              trailing: OfferBadge(text: '${coupon.discountPercent}% OFF'),
+      body: eligibleCoupons.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'No coupons available for your current order value.',
+                  style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.w500),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(12),
+              itemCount: eligibleCoupons.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final coupon = eligibleCoupons[index];
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.confirmation_number_outlined),
+                    title: Text(coupon.code, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    subtitle: Text('${coupon.description}\nMinimum order ${inr(coupon.minimumAmount)}'),
+                    isThreeLine: true,
+                    trailing: OfferBadge(text: '${coupon.discountPercent}% OFF'),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }
