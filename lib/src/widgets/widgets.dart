@@ -377,11 +377,13 @@ class ProductGrid extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             final product = products[index];
-            return ProductCard(
+            return RepaintBoundary(
               key: ValueKey(product.productId),
-              product: product,
-              compact: compact,
-              heroTagPrefix: heroTagPrefix,
+              child: ProductCard(
+                product: product,
+                compact: compact,
+                heroTagPrefix: heroTagPrefix,
+              ),
             );
           },
         );
@@ -412,12 +414,14 @@ class HorizontalProducts extends StatelessWidget {
         itemBuilder: (context, index) {
           final product = products[index];
           return SizedBox(
+            key: ValueKey(product.productId),
             width: 172,
-            child: ProductCard(
-              key: ValueKey(product.productId),
-              product: product,
-              compact: true,
-              heroTagPrefix: heroTagPrefix,
+            child: RepaintBoundary(
+              child: ProductCard(
+                product: product,
+                compact: true,
+                heroTagPrefix: heroTagPrefix,
+              ),
             ),
           );
         },

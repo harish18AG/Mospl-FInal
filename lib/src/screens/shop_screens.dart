@@ -26,7 +26,7 @@ class ShopShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
-    final state = context.watch<AppState>();
+    final cartCount = context.select<AppState, int>((app) => app.cartCount);
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
@@ -51,8 +51,8 @@ class ShopShell extends StatelessWidget {
           const NavigationDestination(icon: Icon(Icons.favorite_border), selectedIcon: Icon(Icons.favorite), label: 'Wishlist'),
           NavigationDestination(
             icon: Badge(
-              isLabelVisible: state.cartCount > 0,
-              label: Text('${state.cartCount}'),
+              isLabelVisible: cartCount > 0,
+              label: Text('$cartCount'),
               child: const Icon(Icons.shopping_cart_outlined),
             ),
             selectedIcon: const Icon(Icons.shopping_cart),
@@ -70,7 +70,12 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    final unreadNotifications = context.select<AppState, int>((app) => app.unreadNotifications);
+    final categories = context.select<AppState, List<ProductCategory>>((app) => app.categories);
+    final trendingProducts = context.select<AppState, List<Product>>((app) => app.trendingProducts);
+    final bestSellers = context.select<AppState, List<Product>>((app) => app.bestSellers);
+    final featuredProducts = context.select<AppState, List<Product>>((app) => app.featuredProducts);
+
     return Scaffold(
       appBar: AppBar(
         title: const MosplLogo(size: 34),
@@ -78,8 +83,8 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             onPressed: () => context.push('/notifications'),
             icon: Badge(
-              isLabelVisible: state.unreadNotifications > 0,
-              label: Text('${state.unreadNotifications}'),
+              isLabelVisible: unreadNotifications > 0,
+              label: Text('$unreadNotifications'),
               child: const Icon(Icons.notifications_none),
             ),
           ),
@@ -104,10 +109,10 @@ class HomeScreen extends StatelessWidget {
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 scrollDirection: Axis.horizontal,
-                itemCount: state.categories.length,
+                itemCount: categories.length,
                 separatorBuilder: (context, index) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
-                  final category = state.categories[index];
+                  final category = categories[index];
                   return InkWell(
                     onTap: () {
                       context.read<AppState>().setCategory(category.name);
@@ -145,7 +150,7 @@ class HomeScreen extends StatelessWidget {
               onAction: () => context.push('/trending'),
             ),
             HorizontalProducts(
-              products: state.trendingProducts.take(10).toList(),
+              products: trendingProducts.take(10).toList(),
               heroTagPrefix: 'trending',
             ),
             SectionHeader(
@@ -154,7 +159,7 @@ class HomeScreen extends StatelessWidget {
               onAction: () => context.push('/recommended'),
             ),
             ProductGrid(
-              products: state.bestSellers.take(8).toList(),
+              products: bestSellers.take(8).toList(),
               compact: true,
               heroTagPrefix: 'bestseller',
             ),
@@ -164,7 +169,7 @@ class HomeScreen extends StatelessWidget {
               onAction: () => context.push('/leather-collections'),
             ),
             HorizontalProducts(
-              products: state.featuredProducts.take(10).toList(),
+              products: featuredProducts.take(10).toList(),
               heroTagPrefix: 'featured',
             ),
           ],
@@ -177,7 +182,7 @@ class HomeScreen extends StatelessWidget {
 class _HomeBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final backendBanners = context.watch<AppState>().banners;
+    final backendBanners = context.select<AppState, List<BannerItem>>((app) => app.banners);
     if (backendBanners.isNotEmpty) {
       return CarouselSlider.builder(
         itemCount: backendBanners.length,
@@ -307,11 +312,14 @@ class ProductListingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final products = state.visibleProducts;
+    final selectedCategory = context.select<AppState, String?>((app) => app.selectedCategory);
+    final categories = context.select<AppState, List<ProductCategory>>((app) => app.categories);
+    final products = context.select<AppState, List<Product>>((app) => app.visibleProducts);
+    final sortOption = context.select<AppState, String>((app) => app.sortOption);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(state.selectedCategory ?? 'All Products'),
+        title: Text(selectedCategory ?? 'All Products'),
         actions: [
           IconButton(onPressed: () => context.push('/filters'), icon: const Icon(Icons.tune)),
           IconButton(onPressed: () => showSortSheet(context), icon: const Icon(Icons.sort)),
@@ -328,16 +336,16 @@ class ProductListingScreen extends StatelessWidget {
               children: [
                 ChoiceChip(
                   label: const Text('All'),
-                  selected: state.selectedCategory == null,
+                  selected: selectedCategory == null,
                   onSelected: (_) => context.read<AppState>().setCategory(null),
                 ),
                 const SizedBox(width: 8),
-                ...state.categories.map(
+                ...categories.map(
                   (category) => Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
                       label: Text(category.name),
-                      selected: state.selectedCategory == category.name,
+                      selected: selectedCategory == category.name,
                       onSelected: (_) => context.read<AppState>().setCategory(category.name),
                     ),
                   ),
@@ -358,7 +366,7 @@ class ProductListingScreen extends StatelessWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Text('${products.length} products • ${state.sortOption}'),
+                        child: Text('${products.length} products • $sortOption'),
                       ),
                       ProductGrid(products: products),
                     ],
@@ -400,15 +408,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final product = state.productById(widget.productId);
+    final product = context.select<AppState, Product>((app) => app.productById(widget.productId));
+    final liveReviews = context.select<AppState, List<Review>>((app) => app.reviewsForProduct(widget.productId));
+    final isWishlisted = context.select<AppState, bool>((app) => app.isWishlisted(widget.productId));
+    final allProducts = context.select<AppState, List<Product>>((app) => app.allProducts);
+
     final images = product.galleryImages.isEmpty ? [product.thumbnail] : product.galleryImages;
     final visibleSpecifications = product.specifications.entries
         .where((entry) => entry.key != 'Source URL' && entry.key != 'Source Product ID')
         .toList();
 
     // ── Live rating computed from Firestore reviews ───────────────────────
-    final liveReviews = state.reviewsForProduct(widget.productId);
     final liveReviewCount = liveReviews.length;
     final liveAvgRating = liveReviews.isEmpty
         ? product.rating
@@ -420,7 +430,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         actions: [
           IconButton(
             onPressed: () => context.read<AppState>().toggleWishlist(product),
-            icon: Icon(state.isWishlisted(product.productId) ? Icons.favorite : Icons.favorite_border),
+            icon: Icon(isWishlisted ? Icons.favorite : Icons.favorite_border),
           ),
           IconButton(onPressed: () => context.push('/cart'), icon: const Icon(Icons.shopping_cart_outlined)),
         ],
@@ -635,7 +645,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ),
           HorizontalProducts(
-            products: state.allProducts.where((item) => item.category == product.category && item.productId != product.productId).take(10).toList(),
+            products: allProducts.where((item) => item.category == product.category && item.productId != product.productId).take(10).toList(),
             heroTagPrefix: 'recommended',
           ),
           const SizedBox(height: 20),
@@ -1003,7 +1013,9 @@ class SearchScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    final searchQuery = context.select<AppState, String>((app) => app.searchQuery);
+    final visibleProducts = context.select<AppState, List<Product>>((app) => app.visibleProducts);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Search')),
       body: Column(
@@ -1012,7 +1024,7 @@ class SearchScreen extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
-                if (state.searchQuery.isEmpty) ...[
+                if (searchQuery.isEmpty) ...[
                   const SectionHeader(title: 'Popular Searches'),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1030,8 +1042,8 @@ class SearchScreen extends StatelessWidget {
                     ),
                   ),
                 ],
-                SectionHeader(title: state.searchQuery.isEmpty ? 'Recommended' : 'Search Results'),
-                ProductGrid(products: state.visibleProducts.take(24).toList()),
+                SectionHeader(title: searchQuery.isEmpty ? 'Recommended' : 'Search Results'),
+                ProductGrid(products: visibleProducts.take(24).toList()),
               ],
             ),
           ),
@@ -1191,7 +1203,7 @@ class WishlistScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final products = context.watch<AppState>().wishlistProducts;
+    final products = context.select<AppState, List<Product>>((app) => app.wishlistProducts);
     return Scaffold(
       appBar: AppBar(title: const Text('Wishlist')),
       body: products.isEmpty
@@ -1225,8 +1237,7 @@ class CollectionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final products = selector(state);
+    final products = context.select<AppState, List<Product>>((app) => selector(app));
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: products.isEmpty
@@ -1265,10 +1276,10 @@ class _ProductComparisonScreenState extends State<ProductComparisonScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final selectedProducts = state.allProducts.where((product) => _selectedProductIds.contains(product.productId)).toList();
+    final allProducts = context.select<AppState, List<Product>>((app) => app.allProducts);
+    final selectedProducts = allProducts.where((product) => _selectedProductIds.contains(product.productId)).toList();
     final query = _search.text.trim().toLowerCase();
-    final selectableProducts = state.allProducts.where((product) {
+    final selectableProducts = allProducts.where((product) {
       if (query.isEmpty) return true;
       final text = '${product.name} ${product.category} ${product.color} ${product.material}'.toLowerCase();
       return text.contains(query);
