@@ -817,9 +817,11 @@ class AppState extends ChangeNotifier {
       cart.add(CartLine(product: product, quantity: quantity));
     }
     _pushNotification('Added to cart', product.name);
-    notifyListeners();
+    notifyListeners(); // single notification — cart badge updates immediately
 
     if (_firebaseUid != null) {
+      // Firebase path: _cartStream listener will fire its own notifyListeners()
+      // after Firestore confirms the write. No second call needed here.
       await _updateFirestoreCart();
     } else {
       if (backendToken == null) await _syncBackendFirebaseSession();
@@ -833,11 +835,11 @@ class AppState extends ChangeNotifier {
         cart
           ..clear()
           ..addAll(saved);
+        notifyListeners(); // only needed for non-Firebase backend sync
       } catch (error) {
         catalogError = error.toString();
       }
     }
-    notifyListeners();
   }
 
   Future<void> setCartQuantity(String productId, int quantity) async {
@@ -902,9 +904,11 @@ class AppState extends ChangeNotifier {
       _pushNotification('Wishlist updated', '${product.name} saved for later.');
     }
     _invalidateWishlistCache();
-    notifyListeners();
+    notifyListeners(); // single notification — only the _WishlistButton for this product rebuilds
 
     if (_firebaseUid != null) {
+      // Firebase path: _wishlistStream listener will fire its own notifyListeners()
+      // after Firestore confirms the write. No second call needed here.
       await _updateFirestoreWishlist();
     } else {
       if (backendToken == null) await _syncBackendFirebaseSession();
@@ -916,11 +920,11 @@ class AppState extends ChangeNotifier {
         wishlist
           ..clear()
           ..addAll(saved);
+        notifyListeners(); // only needed for non-Firebase backend sync
       } catch (error) {
         catalogError = error.toString();
       }
     }
-    notifyListeners();
   }
 
   bool isWishlisted(String productId) => wishlist.contains(productId);

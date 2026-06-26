@@ -216,9 +216,6 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     debugPrint('ProductCard build: ${product.productId}');
-    final wished = context.select<AppState, bool>((app) => app.isWishlisted(product.productId));
-    final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(product.productId));
-    final liveReviewCount = context.select<AppState, int>((app) => app.getProductLiveReviewCount(product.productId));
     final resolvedHeroTag = heroTagPrefix != null
         ? '$heroTagPrefix-${product.productId}'
         : 'product-${product.productId}';
@@ -274,16 +271,7 @@ class ProductCard extends StatelessWidget {
                 Positioned(
                   right: 4,
                   top: 4,
-                  child: IconButton.filledTonal(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => context.read<AppState>().toggleWishlist(product),
-                    icon: Builder(
-                      builder: (context) {
-                        debugPrint('WishlistIcon build: ${product.productId}');
-                        return Icon(wished ? Icons.favorite : Icons.favorite_border);
-                      },
-                    ),
-                  ),
+                  child: _WishlistButton(productId: product.productId, product: product),
                 ),
               ],
             ),
@@ -303,23 +291,7 @@ class ProductCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   PriceRow(product: product, compact: compact),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(
-                        liveRating > 0 ? Icons.star : Icons.star_border,
-                        color: const Color(0xffffb300),
-                        size: 16,
-                      ),
-                      const SizedBox(width: 3),
-                      Expanded(
-                        child: Text(
-                          liveRating > 0 ? '${liveRating.toStringAsFixed(1)} ($liveReviewCount)' : 'No Rating yet ($liveReviewCount)',
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ],
-                  ),
+                  _RatingRow(productId: product.productId),
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -334,18 +306,7 @@ class ProductCard extends StatelessWidget {
                               ),
                         ),
                       ),
-                      IconButton.filled(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: product.stock <= 0
-                            ? null
-                            : () => context.read<AppState>().addToCart(product),
-                        icon: Icon(
-                          product.stock <= 0
-                              ? Icons.remove_shopping_cart
-                              : Icons.add_shopping_cart,
-                          size: 18,
-                        ),
-                      ),
+                      _AddToCartButton(product: product),
                     ],
                   ),
                 ],
@@ -354,6 +315,81 @@ class ProductCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Isolated widget: only rebuilds when THIS product's wishlist state changes.
+class _WishlistButton extends StatelessWidget {
+  const _WishlistButton({required this.productId, required this.product});
+
+  final String productId;
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) {
+    debugPrint('WishlistIcon build: $productId');
+    final wished = context.select<AppState, bool>((app) => app.isWishlisted(productId));
+    return IconButton.filledTonal(
+      visualDensity: VisualDensity.compact,
+      onPressed: () => context.read<AppState>().toggleWishlist(product),
+      icon: Icon(wished ? Icons.favorite : Icons.favorite_border),
+    );
+  }
+}
+
+/// Isolated widget: reads NO global state — only fires writes.
+/// Will NEVER rebuild due to cart or wishlist changes.
+class _AddToCartButton extends StatelessWidget {
+  const _AddToCartButton({required this.product});
+
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filled(
+      visualDensity: VisualDensity.compact,
+      onPressed: product.stock <= 0
+          ? null
+          : () => context.read<AppState>().addToCart(product),
+      icon: Icon(
+        product.stock <= 0
+            ? Icons.remove_shopping_cart
+            : Icons.add_shopping_cart,
+        size: 18,
+      ),
+    );
+  }
+}
+
+/// Isolated widget: only rebuilds when THIS product's rating/review changes.
+class _RatingRow extends StatelessWidget {
+  const _RatingRow({required this.productId});
+
+  final String productId;
+
+  @override
+  Widget build(BuildContext context) {
+    final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(productId));
+    final liveReviewCount = context.select<AppState, int>((app) => app.getProductLiveReviewCount(productId));
+    return Row(
+      children: [
+        Icon(
+          liveRating > 0 ? Icons.star : Icons.star_border,
+          color: const Color(0xffffb300),
+          size: 16,
+        ),
+        const SizedBox(width: 3),
+        Expanded(
+          child: Text(
+            liveRating > 0
+                ? '${liveRating.toStringAsFixed(1)} ($liveReviewCount)'
+                : 'No Rating yet ($liveReviewCount)',
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
+      ],
     );
   }
 }
