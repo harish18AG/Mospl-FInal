@@ -227,7 +227,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final TextEditingController _oldPrice;
   late final TextEditingController _customDiscount;
   late final TextEditingController _stock;
-  late final TextEditingController _sourceUrl;
   late final TextEditingController _description;
 
   late final TextEditingController _specHeight;
@@ -260,7 +259,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _oldPrice = TextEditingController(text: (_editing?.oldPrice ?? 850).toString());
     _customDiscount = TextEditingController(text: (_editing?.customDiscount ?? 0).toString());
     _stock = TextEditingController(text: (_editing?.stock ?? 25).toString());
-    _sourceUrl = TextEditingController(text: _editing?.sourceUrl ?? 'Not Specified');
     _description = TextEditingController(text: _editing?.description ?? sample.description);
 
     final specs = _editing?.specifications ?? {};
@@ -293,7 +291,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _oldPrice.dispose();
     _customDiscount.dispose();
     _stock.dispose();
-    _sourceUrl.dispose();
     _description.dispose();
 
     _specHeight.dispose();
@@ -466,7 +463,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               StockLimitTextInputFormatter(),
             ],
           ),
-          _field(_sourceUrl, 'Source URL', Icons.open_in_new),
           _field(_description, 'Description', Icons.description_outlined, maxLines: 4),
           const SizedBox(height: 16),
           Text(
@@ -653,7 +649,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 stock: stockVal,
                 shortDescription: _description.text.trim(),
                 description: _description.text.trim(),
-                sourceUrl: _sourceUrl.text.trim().isEmpty ? 'Not Specified' : _sourceUrl.text.trim(),
+                sourceUrl: _editing?.sourceUrl ?? 'Not Specified',
                 sku: _editing?.sku ?? 'ADMIN-${DateTime.now().millisecondsSinceEpoch}',
                 thumbnail: nonNullableImages.first!,
                 galleryImages: nonNullableImages.cast<String>().toList(),

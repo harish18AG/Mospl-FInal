@@ -552,12 +552,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 _buildStockBanner(context, product.stock),
                 const SizedBox(height: 18),
                 Text(product.description),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _openSourceListing(context, product),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Open source listing'),
-                ),
                 const SizedBox(height: 18),
                 Text('Specifications', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 8),
@@ -655,23 +649,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _openSourceListing(BuildContext context, Product product) async {
-    final sourceUrl = product.sourceUrl.trim();
-    final uri = Uri.tryParse(sourceUrl);
-    if (uri == null || uri.host.isEmpty || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Source URL is not available for this product.')),
-      );
-      return;
-    }
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open source listing.')),
-      );
-    }
   }
 
   Widget _buildStockBanner(BuildContext context, int stock) {
