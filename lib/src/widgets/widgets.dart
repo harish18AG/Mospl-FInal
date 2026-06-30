@@ -385,6 +385,8 @@ class _AddToCartButton extends StatelessWidget {
 }
 
 /// Isolated widget: only rebuilds when THIS product's rating/review changes.
+/// Uses a single tuple selector to halve the number of Provider subscriptions
+/// per card (one instead of two), reducing rebuild triggers on review changes.
 class _RatingRow extends StatelessWidget {
   const _RatingRow({required this.productId});
 
@@ -392,8 +394,11 @@ class _RatingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final liveRating = context.select<AppState, double>((app) => app.getProductLiveRating(productId));
-    final liveReviewCount = context.select<AppState, int>((app) => app.getProductLiveReviewCount(productId));
+    // Single selector for both values — avoids two separate subscription registrations
+    // so a review update only causes ONE equality check (not two) per card.
+    final (liveRating, liveReviewCount) = context.select<AppState, (double, int)>(
+      (app) => (app.getProductLiveRating(productId), app.getProductLiveReviewCount(productId)),
+    );
     return Row(
       children: [
         Icon(
@@ -613,18 +618,20 @@ class SearchBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
+    // FIX: Was context.watch<AppState>() which rebuilt on EVERY state change
+    // (including cart/wishlist toggles). Now only rebuilds when searchQuery changes.
+    final searchQuery = context.select<AppState, String>((app) => app.searchQuery);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
       child: TextField(
         readOnly: readOnly,
         onTap: onTap,
         onChanged: context.read<AppState>().updateSearch,
-        controller: readOnly ? TextEditingController(text: state.searchQuery) : null,
+        controller: readOnly ? TextEditingController(text: searchQuery) : null,
         decoration: InputDecoration(
           hintText: 'Search wallets, belts, passport holders',
           prefixIcon: const Icon(Icons.search),
-          suffixIcon: state.searchQuery.isNotEmpty
+          suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => context.read<AppState>().updateSearch(''),
@@ -691,9 +698,15 @@ class RatingSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final app = context.watch<AppState>();
-    final liveRating = app.getProductLiveRating(product.productId);
-    final liveReviewCount = app.getProductLiveReviewCount(product.productId);
+    // FIX: Was context.watch<AppState>() which rebuilt on EVERY state change.
+    // Now uses a single tuple selector so this widget only rebuilds when
+    // the rating or review count for THIS specific product changes.
+    final (liveRating, liveReviewCount) = context.select<AppState, (double, int)>(
+      (app) => (
+        app.getProductLiveRating(product.productId),
+        app.getProductLiveReviewCount(product.productId),
+      ),
+    );
     if (liveRating <= 0) {
       final reviewLabel = liveReviewCount == 1 ? '1 review' : '$liveReviewCount reviews';
       return Row(

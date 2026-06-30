@@ -802,7 +802,10 @@ class AppState extends ChangeNotifier {
     recentlyViewed.removeWhere((item) => item.productId == product.productId);
     recentlyViewed.insert(0, product);
     if (recentlyViewed.length > 20) recentlyViewed.removeLast();
-    notifyListeners();
+    // FIX: Removed notifyListeners() — this was firing a global rebuild on every
+    // product card tap, causing ALL sibling cards to blink before navigation.
+    // recentlyViewed is a background update; consumers (recommendations section)
+    // use context.select and will pick up the change when they next become active.
   }
 
   Future<void> addToCart(Product product, {int quantity = 1}) async {
@@ -875,7 +878,10 @@ class AppState extends ChangeNotifier {
         catalogError = error.toString();
       }
     }
-    notifyListeners();
+    // FIX: Removed trailing notifyListeners() — for the Firebase path the
+    // _cartStream listener fires its own notify after Firestore confirms.
+    // For the backend path, the cart is already up-to-date in memory after the
+    // await above, so the single notify at line 861 is sufficient.
   }
 
   Future<void> removeFromCart(String productId) async {
@@ -895,7 +901,8 @@ class AppState extends ChangeNotifier {
         catalogError = error.toString();
       }
     }
-    notifyListeners();
+    // FIX: Removed trailing notifyListeners() — same reason as setCartQuantity().
+    // The Firebase stream fires its own notify; backend path already updated in memory.
   }
 
   Future<void> toggleWishlist(Product product) async {
