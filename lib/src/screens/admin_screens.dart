@@ -33,8 +33,23 @@ class AdminGate extends StatelessWidget {
   }
 }
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AppState>().loadAdminData();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +104,6 @@ class AdminDashboardScreen extends StatelessWidget {
       ),
     );
   }
-
   Widget _adminLink(BuildContext context, String title, IconData icon, String route) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),

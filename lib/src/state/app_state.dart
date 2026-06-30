@@ -2707,12 +2707,9 @@ class AppState extends ChangeNotifier {
     final uid = _firebaseUid;
     if (uid != null) _startRealtimeSync(uid);
     // Also do a one-shot reload if we just obtained a token for the first time
-    // to immediately populate cart/wishlist before the stream first fires.
+    // to immediately populate all authenticated details (cart, wishlist, and admin data if applicable).
     if (!hadToken && backendToken != null) {
-      Future.wait([
-        loadCart(notify: true),
-        loadWishlist(notify: false),
-      ]).ignore();
+      loadAuthenticatedData(notify: true).ignore();
     }
   }
 
