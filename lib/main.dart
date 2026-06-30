@@ -38,11 +38,17 @@ class MosplApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
+    // CRITICAL FIX: Was context.watch<AppState>() — this caused MosplApp
+    // (the ROOT widget) to rebuild on EVERY notifyListeners() call, forcing
+    // MaterialApp.router to rebuild, which re-rendered the entire widget tree
+    // including every ProductCard on every screen on every cart/wishlist tap.
+    //
+    // Fix: only observe the single field this widget actually uses: darkMode.
+    final isDark = context.select<AppState, bool>((app) => app.darkMode);
     return MaterialApp.router(
       title: 'MOSPL',
       debugShowCheckedModeBanner: false,
-      themeMode: appState.darkMode ? ThemeMode.dark : ThemeMode.light,
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       routerConfig: AppRouter.router,
