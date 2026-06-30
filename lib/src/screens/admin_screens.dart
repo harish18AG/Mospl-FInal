@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -272,16 +273,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _sourceUrl.dispose();
     _description.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickAndUploadImage(int index) async {
+  }  Future<void> _pickAndUploadImage(int index) async {
     try {
       final picker = image_picker.ImagePicker();
       final image = await picker.pickImage(
         source: image_picker.ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 60,
       );
       if (image == null) return;
 
@@ -290,20 +289,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       });
 
       final bytes = await image.readAsBytes();
-      final filename = 'image_$index.jpg';
-      final storageRef = firebase_storage.FirebaseStorage.instance
-          .ref()
-          .child('products')
-          .child(_productId)
-          .child(filename);
-
-      final metadata = firebase_storage.SettableMetadata(contentType: 'image/jpeg');
-      final uploadTask = storageRef.putData(bytes, metadata);
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
+      final base64Str = 'data:image/jpeg;base64,${base64.encode(bytes)}';
 
       setState(() {
-        _images[index] = downloadUrl;
+        _images[index] = base64Str;
         _uploading[index] = false;
       });
     } catch (e) {
@@ -311,7 +300,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         _uploading[index] = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: $e')),
+        SnackBar(content: Text('Failed to process image: $e')),
       );
     }
   }
@@ -332,12 +321,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         children: [
           if (imageUrl != null && imageUrl.isNotEmpty) ...[
             Positioned.fill(
-              child: Image.network(
-                imageUrl,
+              child: ProductImage(
+                url: imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(child: Icon(Icons.broken_image_outlined, color: Colors.grey));
-                },
               ),
             ),
             Positioned(

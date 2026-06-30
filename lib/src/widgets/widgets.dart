@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -97,6 +98,27 @@ class ProductImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var resolvedUrl = url;
+    if (resolvedUrl.startsWith('data:image/') && resolvedUrl.contains(';base64,')) {
+      final base64String = resolvedUrl.substring(resolvedUrl.indexOf(';base64,') + 8);
+      try {
+        final bytes = base64.decode(base64String.trim());
+        final img = Image.memory(
+          bytes,
+          height: height,
+          width: width,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => Image.asset(
+            'assets/products/product_fallback.png',
+            height: height,
+            width: width,
+            fit: fit,
+          ),
+        );
+        if (heroTag == null) return img;
+        return Hero(tag: heroTag!, child: img);
+      } catch (_) {}
+    }
+
     if (resolvedUrl.startsWith('/static/products/')) {
       resolvedUrl = resolvedUrl.replaceFirst('/static/products/', 'assets/products/');
     } else if (resolvedUrl.startsWith('static/products/')) {
