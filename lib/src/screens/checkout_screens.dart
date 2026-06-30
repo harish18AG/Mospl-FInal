@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -420,7 +421,16 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _field(_name, 'Full name', Icons.person_outline),
-          _field(_phone, 'Phone for delivery only', Icons.call_outlined, keyboard: TextInputType.phone),
+          _field(
+            _phone,
+            'Phone for delivery only',
+            Icons.call_outlined,
+            keyboard: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(10),
+            ],
+          ),
           _field(_line1, 'House / building / street', Icons.home_outlined),
           _field(_line2, 'Area / landmark', Icons.map_outlined),
           Row(
@@ -430,7 +440,16 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
               Expanded(child: _field(_state, 'State', Icons.map_outlined)),
             ],
           ),
-          _field(_pincode, 'Pincode', Icons.pin_drop_outlined, keyboard: TextInputType.number),
+          _field(
+            _pincode,
+            'Pincode',
+            Icons.pin_drop_outlined,
+            keyboard: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(6),
+            ],
+          ),
           SwitchListTile(
             value: _default,
             onChanged: (value) => setState(() => _default = value),
@@ -473,12 +492,19 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     );
   }
 
-  Widget _field(TextEditingController controller, String label, IconData icon, {TextInputType? keyboard}) {
+  Widget _field(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType? keyboard,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
         keyboardType: keyboard,
+        inputFormatters: inputFormatters,
         decoration: InputDecoration(prefixIcon: Icon(icon), labelText: label),
       ),
     );
