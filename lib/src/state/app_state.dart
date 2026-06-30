@@ -821,7 +821,9 @@ class AppState extends ChangeNotifier {
     } else {
       cart.add(CartLine(product: product, quantity: quantity));
     }
-    _pushNotification('Added to cart', product.name);
+    // FIX: Removed _pushNotification('Added to cart', ...) — adding to the
+    // persistent notifications list incremented unreadNotifications, which
+    // triggered HomeScreen to rebuild, cascading into every ProductCard blinking.
     notifyListeners(); // single notification — cart badge updates immediately
 
     if (_firebaseUid != null) {
@@ -852,7 +854,8 @@ class AppState extends ChangeNotifier {
     if (index < 0) return;
     final product = cart[index].product;
     if (quantity > product.stock) {
-      _pushNotification('Out of Stock', 'Cannot set quantity to $quantity. Only ${product.stock} available.');
+      // FIX: Removed _pushNotification here — mutating notifications list
+      // changed unreadNotifications count and caused HomeScreen to rebuild.
       notifyListeners();
       return;
     }
@@ -909,9 +912,10 @@ class AppState extends ChangeNotifier {
     final shouldAdd = !wishlist.contains(product.productId);
     if (!wishlist.add(product.productId)) {
       wishlist.remove(product.productId);
-    } else {
-      _pushNotification('Wishlist updated', '${product.name} saved for later.');
     }
+    // FIX: Removed _pushNotification('Wishlist updated', ...) — adding to the
+    // persistent notifications list incremented unreadNotifications, which
+    // triggered HomeScreen to rebuild, cascading into every ProductCard blinking.
     _invalidateWishlistCache();
     notifyListeners(); // single notification — only the _WishlistButton for this product rebuilds
 

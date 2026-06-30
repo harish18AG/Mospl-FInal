@@ -73,11 +73,11 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     debugPrint('HomeScreen build');
     debugPrint('HomePage build');
+    // FIX: Only listen to scalars here. Product lists are consumed by dedicated
+    // child widgets (_HomeTrendingSection etc.) that own their own context.select.
+    // This means HomeScreen can rebuild on badge changes WITHOUT touching the grids.
     final unreadNotifications = context.select<AppState, int>((app) => app.unreadNotifications);
     final categories = context.select<AppState, List<ProductCategory>>((app) => app.categories);
-    final trendingProducts = context.select<AppState, List<Product>>((app) => app.trendingProducts);
-    final bestSellers = context.select<AppState, List<Product>>((app) => app.bestSellers);
-    final featuredProducts = context.select<AppState, List<Product>>((app) => app.featuredProducts);
 
     return Scaffold(
       appBar: AppBar(
@@ -152,32 +152,78 @@ class HomeScreen extends StatelessWidget {
               actionLabel: 'View all',
               onAction: () => context.push('/trending'),
             ),
-            HorizontalProducts(
-              products: trendingProducts.take(10).toList(),
-              heroTagPrefix: 'trending',
-            ),
+            // FIX: Isolated child widget — selects its own product list.
+            // HomeScreen rebuild does NOT cascade into this section.
+            const _HomeTrendingSection(),
             SectionHeader(
               title: 'Current MOSPL Products',
               actionLabel: 'See more',
               onAction: () => context.push('/recommended'),
             ),
-            ProductGrid(
-              products: bestSellers.take(8).toList(),
-              compact: true,
-              heroTagPrefix: 'bestseller',
-            ),
+            // FIX: Isolated child widget.
+            const _HomeBestSellersGrid(),
             SectionHeader(
               title: 'More from Online Madras',
               actionLabel: 'Collections',
               onAction: () => context.push('/leather-collections'),
             ),
-            HorizontalProducts(
-              products: featuredProducts.take(10).toList(),
-              heroTagPrefix: 'featured',
-            ),
+            // FIX: Isolated child widget.
+            const _HomeFeaturedSection(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Isolated trending products row.
+/// Only rebuilds when trendingProducts list reference changes.
+class _HomeTrendingSection extends StatelessWidget {
+  const _HomeTrendingSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final products = context.select<AppState, List<Product>>(
+      (app) => app.trendingProducts,
+    );
+    return HorizontalProducts(
+      products: products.take(10).toList(),
+      heroTagPrefix: 'trending',
+    );
+  }
+}
+
+/// Isolated bestsellers grid.
+/// Only rebuilds when bestSellers list reference changes.
+class _HomeBestSellersGrid extends StatelessWidget {
+  const _HomeBestSellersGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final products = context.select<AppState, List<Product>>(
+      (app) => app.bestSellers,
+    );
+    return ProductGrid(
+      products: products.take(8).toList(),
+      compact: true,
+      heroTagPrefix: 'bestseller',
+    );
+  }
+}
+
+/// Isolated featured products row.
+/// Only rebuilds when featuredProducts list reference changes.
+class _HomeFeaturedSection extends StatelessWidget {
+  const _HomeFeaturedSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final products = context.select<AppState, List<Product>>(
+      (app) => app.featuredProducts,
+    );
+    return HorizontalProducts(
+      products: products.take(10).toList(),
+      heroTagPrefix: 'featured',
     );
   }
 }
