@@ -476,14 +476,57 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           const SizedBox(height: 8),
           _field(_specHeight, 'Height (e.g. 90 mm)', Icons.height),
           _field(_specWidth, 'Width (e.g. 120 mm)', Icons.straighten),
-          _field(_specClosureType, 'Closure Type (e.g. Flap)', Icons.lock_outline),
-          _field(_specStitching, 'Stitching (e.g. Double Stitch)', Icons.gesture),
-          _field(_specCompartments, 'No. of Compartments (e.g. 2)', Icons.grid_view),
-          _field(_specCardSlots, 'Card Slots (e.g. 7)', Icons.credit_card),
-          _field(_specPockets, 'No. of Pockets (e.g. 3)', Icons.folder_open),
-          _field(_specPattern, 'Pattern (e.g. Brand Embossed)', Icons.texture),
-          _field(_specColor, 'Color (e.g. Black)', Icons.color_lens_outlined),
-          _field(_specMaterial, 'Material (e.g. Genuine Leather)', Icons.gavel_outlined),
+          _field(
+            _specClosureType,
+            'Closure Type (e.g. Flap)',
+            Icons.lock_outline,
+            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'[0-9]'))],
+          ),
+          _field(
+            _specStitching,
+            'Stitching (e.g. Double Stitch)',
+            Icons.gesture,
+            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'[0-9]'))],
+          ),
+          _field(
+            _specCompartments,
+            'No. of Compartments (e.g. 2)',
+            Icons.grid_view,
+            keyboard: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          _field(
+            _specCardSlots,
+            'Card Slots (e.g. 7)',
+            Icons.credit_card,
+            keyboard: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          _field(
+            _specPockets,
+            'No. of Pockets (e.g. 3)',
+            Icons.folder_open,
+            keyboard: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          _field(
+            _specPattern,
+            'Pattern (e.g. Brand Embossed)',
+            Icons.texture,
+            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'[0-9]'))],
+          ),
+          _field(
+            _specColor,
+            'Color (e.g. Black)',
+            Icons.color_lens_outlined,
+            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'[0-9]'))],
+          ),
+          _field(
+            _specMaterial,
+            'Material (e.g. Genuine Leather)',
+            Icons.gavel_outlined,
+            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'[0-9]'))],
+          ),
           const SizedBox(height: 16),
           Text(
             'Product Images (5 slots)',
@@ -525,6 +568,58 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               if (nonNullableImages.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('atleast single image must be uploaded')),
+                );
+                return;
+              }
+
+              final wordsRegex = RegExp(r'[0-9]');
+              if (wordsRegex.hasMatch(_specClosureType.text)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Closure Type must not contain numbers')),
+                );
+                return;
+              }
+              if (wordsRegex.hasMatch(_specStitching.text)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Stitching must not contain numbers')),
+                );
+                return;
+              }
+              if (wordsRegex.hasMatch(_specPattern.text)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Pattern must not contain numbers')),
+                );
+                return;
+              }
+              if (wordsRegex.hasMatch(_specColor.text)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Color must not contain numbers')),
+                );
+                return;
+              }
+              if (wordsRegex.hasMatch(_specMaterial.text)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Material must not contain numbers')),
+                );
+                return;
+              }
+
+              final numbersRegex = RegExp(r'^\d+$');
+              if (!numbersRegex.hasMatch(_specCompartments.text.trim())) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No. of Compartments must contain only numbers')),
+                );
+                return;
+              }
+              if (!numbersRegex.hasMatch(_specCardSlots.text.trim())) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Card Slots must contain only numbers')),
+                );
+                return;
+              }
+              if (!numbersRegex.hasMatch(_specPockets.text.trim())) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No. of Pockets must contain only numbers')),
                 );
                 return;
               }
