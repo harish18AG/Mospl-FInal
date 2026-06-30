@@ -2408,8 +2408,9 @@ class AppState extends ChangeNotifier {
       }
     }
     final productToStoreClamped = productToStore.copyWith(stock: productToStore.stock.clamp(0, 30));
-    if (index >= 0) {
-      _allProducts[index] = productToStoreClamped.copyWith(updatedAt: DateTime.now());
+    final doubleCheckIndex = _allProducts.indexWhere((item) => item.productId == productToStoreClamped.productId);
+    if (doubleCheckIndex >= 0) {
+      _allProducts[doubleCheckIndex] = productToStoreClamped.copyWith(updatedAt: DateTime.now());
     } else {
       _allProducts.insert(0, productToStoreClamped);
     }
