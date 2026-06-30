@@ -230,6 +230,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final TextEditingController _sourceUrl;
   late final TextEditingController _description;
 
+  late final TextEditingController _specHeight;
+  late final TextEditingController _specWidth;
+  late final TextEditingController _specClosureType;
+  late final TextEditingController _specStitching;
+  late final TextEditingController _specCompartments;
+  late final TextEditingController _specCardSlots;
+  late final TextEditingController _specPockets;
+  late final TextEditingController _specPattern;
+  late final TextEditingController _specColor;
+  late final TextEditingController _specMaterial;
+
   late final String _productId;
   final List<String?> _images = List.filled(5, null);
   final List<bool> _uploading = List.filled(5, false);
@@ -252,6 +263,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _sourceUrl = TextEditingController(text: _editing?.sourceUrl ?? 'Not Specified');
     _description = TextEditingController(text: _editing?.description ?? sample.description);
 
+    final specs = _editing?.specifications ?? {};
+    _specHeight = TextEditingController(text: specs['Height'] ?? '90 mm');
+    _specWidth = TextEditingController(text: specs['Width'] ?? '120 mm');
+    _specClosureType = TextEditingController(text: specs['Closure Type'] ?? 'Flap');
+    _specStitching = TextEditingController(text: specs['Stitching'] ?? 'Double Stitch');
+    _specCompartments = TextEditingController(text: specs['No. of Compartments'] ?? '2');
+    _specCardSlots = TextEditingController(text: specs['Card Slots'] ?? '7');
+    _specPockets = TextEditingController(text: specs['No. of Pocket'] ?? '3');
+    _specPattern = TextEditingController(text: specs['Pattern'] ?? 'Brand Embossed');
+    _specColor = TextEditingController(text: specs['Color'] ?? _editing?.color ?? 'Black');
+    _specMaterial = TextEditingController(text: specs['Material'] ?? _editing?.material ?? 'Genuine Leather');
+
     if (_editing != null) {
       final gallery = _editing!.galleryImages;
       for (int i = 0; i < 5; i++) {
@@ -272,6 +295,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _stock.dispose();
     _sourceUrl.dispose();
     _description.dispose();
+
+    _specHeight.dispose();
+    _specWidth.dispose();
+    _specClosureType.dispose();
+    _specStitching.dispose();
+    _specCompartments.dispose();
+    _specCardSlots.dispose();
+    _specPockets.dispose();
+    _specPattern.dispose();
+    _specColor.dispose();
+    _specMaterial.dispose();
+
     super.dispose();
   }  Future<void> _pickAndUploadImage(int index) async {
     try {
@@ -435,6 +470,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           _field(_description, 'Description', Icons.description_outlined, maxLines: 4),
           const SizedBox(height: 16),
           Text(
+            'Product Specifications',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          _field(_specHeight, 'Height (e.g. 90 mm)', Icons.height),
+          _field(_specWidth, 'Width (e.g. 120 mm)', Icons.straighten),
+          _field(_specClosureType, 'Closure Type (e.g. Flap)', Icons.lock_outline),
+          _field(_specStitching, 'Stitching (e.g. Double Stitch)', Icons.gesture),
+          _field(_specCompartments, 'No. of Compartments (e.g. 2)', Icons.grid_view),
+          _field(_specCardSlots, 'Card Slots (e.g. 7)', Icons.credit_card),
+          _field(_specPockets, 'No. of Pockets (e.g. 3)', Icons.folder_open),
+          _field(_specPattern, 'Pattern (e.g. Brand Embossed)', Icons.texture),
+          _field(_specColor, 'Color (e.g. Black)', Icons.color_lens_outlined),
+          _field(_specMaterial, 'Material (e.g. Genuine Leather)', Icons.gavel_outlined),
+          const SizedBox(height: 16),
+          Text(
             'Product Images (5 slots)',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
@@ -478,6 +529,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 return;
               }
 
+              final specifications = {
+                ...(_editing?.specifications ?? {}),
+                'Height': _specHeight.text.trim(),
+                'Width': _specWidth.text.trim(),
+                'Closure Type': _specClosureType.text.trim(),
+                'Stitching': _specStitching.text.trim(),
+                'No. of Compartments': _specCompartments.text.trim(),
+                'Card Slots': _specCardSlots.text.trim(),
+                'No. of Pocket': _specPockets.text.trim(),
+                'Pattern': _specPattern.text.trim(),
+                'Color': _specColor.text.trim(),
+                'Material': _specMaterial.text.trim(),
+                'Stock': stockVal.toString(),
+              };
+
               final product = sample.copyWith(
                 productId: _productId,
                 name: _name.text.trim(),
@@ -496,6 +562,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 sku: _editing?.sku ?? 'ADMIN-${DateTime.now().millisecondsSinceEpoch}',
                 thumbnail: nonNullableImages.first!,
                 galleryImages: nonNullableImages.cast<String>().toList(),
+                color: _specColor.text.trim(),
+                material: _specMaterial.text.trim(),
+                size: '${_specHeight.text.trim()} x ${_specWidth.text.trim()}',
+                specifications: specifications,
                 createdAt: _editing?.createdAt ?? DateTime.now(),
                 updatedAt: DateTime.now(),
               );
