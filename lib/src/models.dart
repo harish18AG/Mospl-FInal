@@ -564,6 +564,16 @@ class ChatMessage {
       recommendedProductIds: _strings(map['recommendedProductIds']),
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'text': text,
+      'isUser': isUser,
+      'createdAt': createdAt.toIso8601String(),
+      'recommendedProductIds': recommendedProductIds,
+    };
+  }
 }
 
 class Coupon {

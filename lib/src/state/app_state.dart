@@ -395,6 +395,8 @@ class AppState extends ChangeNotifier {
       _syncBackendFirebaseSession().ignore();
       await loadAuthenticatedData(notify: false);
       _startRealtimeSync(firebaseUser?.uid);
+    } else {
+      await _loadGuestChatHistory();
     }
     subscribeAllReviews();
     subscribeDailyOffers();
@@ -653,7 +655,7 @@ class AppState extends ChangeNotifier {
     await prefs.remove('userRole');
     await prefs.remove('backendToken');
     _invalidateProductsCache();
-    notifyListeners();
+    await _loadGuestChatHistory();
   }
 
   // ── Real-time Firestore streams ─────────────────────────────────────────────
@@ -1240,6 +1242,33 @@ class AppState extends ChangeNotifier {
       catalogError = error.toString();
     }
     if (notify) notifyListeners();
+  }
+
+  Future<void> _loadGuestChatHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('guest_chat_history');
+      if (raw != null) {
+        final List decoded = json.decode(raw);
+        final messages = decoded.map((item) => ChatMessage.fromMap(Map<String, dynamic>.from(item))).toList();
+        chatMessages
+          ..clear()
+          ..addAll(messages);
+      } else {
+        chatMessages.clear();
+      }
+    } catch (_) {
+      chatMessages.clear();
+    }
+    notifyListeners();
+  }
+
+  Future<void> _saveGuestChatHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = chatMessages.map((msg) => msg.toMap()).toList();
+      await prefs.setString('guest_chat_history', json.encode(list));
+    } catch (_) {}
   }
 
   Future<void> loadReturns({bool notify = true}) async {
@@ -2463,7 +2492,10 @@ class AppState extends ChangeNotifier {
       ChatMessage(id: _uuid.v4(), text: clean, isUser: true, createdAt: DateTime.now()),
     );
     notifyListeners();
-    if (backendToken == null) await _syncBackendFirebaseSession();
+    if (backendToken == null) {
+      await _saveGuestChatHistory();
+      await _syncBackendFirebaseSession();
+    }
     if (backendToken != null) {
       try {
         final reply = await _apiClient.sendChatMessage(clean, backendToken!);
@@ -2558,6 +2590,7 @@ class AppState extends ChangeNotifier {
       ),
     );
     notifyListeners();
+    await _saveGuestChatHistory();
   }
 
   String _dummyReply(String original, String lower, List<String> recommended) {
