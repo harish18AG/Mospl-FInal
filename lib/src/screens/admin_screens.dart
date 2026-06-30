@@ -1,7 +1,9 @@
+import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart' as image_picker;
 import 'package:provider/provider.dart';
 
 import '../models.dart';
@@ -191,13 +193,10 @@ class AdminProductsScreen extends StatelessWidget {
   }
 
   void _showStockDialog(BuildContext context, Product product) {
-    // Capture BEFORE showDialog — dialog context has no Scaffold ancestor
     final messenger = ScaffoldMessenger.of(context);
     final appState = context.read<AppState>();
     showDialog<void>(
       context: context,
-      // _StockDialog is a StatefulWidget that owns the TextEditingController
-      // so Flutter disposes the TextField before the controller — no crash.
       builder: (_) => _StockDialog(
         product: product,
         messenger: messenger,
@@ -230,12 +229,19 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final TextEditingController _sourceUrl;
   late final TextEditingController _description;
 
+  late final String _productId;
+  final List<String?> _images = List.filled(5, null);
+  final List<bool> _uploading = List.filled(5, false);
+
   @override
   void initState() {
     super.initState();
     final state = context.read<AppState>();
     _editing = widget.productId == null ? null : state.productById(widget.productId!);
     final sample = _editing ?? state.allProducts.first;
+    
+    _productId = _editing?.productId ?? 'MOSPL-ADMIN-${DateTime.now().millisecondsSinceEpoch}';
+    
     _name = TextEditingController(text: _editing?.name ?? 'MOSPL Custom Leather Product');
     _category = TextEditingController(text: _editing?.category ?? 'Men Wallets');
     _price = TextEditingController(text: (_editing?.price ?? 595).toString());
@@ -244,6 +250,15 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _stock = TextEditingController(text: (_editing?.stock ?? 25).toString());
     _sourceUrl = TextEditingController(text: _editing?.sourceUrl ?? 'Not Specified');
     _description = TextEditingController(text: _editing?.description ?? sample.description);
+
+    if (_editing != null) {
+      final gallery = _editing!.galleryImages;
+      for (int i = 0; i < 5; i++) {
+        if (i < gallery.length) {
+          _images[i] = gallery[i];
+        }
+      }
+    }
   }
 
   @override
@@ -259,6 +274,121 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     super.dispose();
   }
 
+  Future<void> _pickAndUploadImage(int index) async {
+    try {
+      final picker = image_picker.ImagePicker();
+      final image = await picker.pickImage(
+        source: image_picker.ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (image == null) return;
+
+      setState(() {
+        _uploading[index] = true;
+      });
+
+      final bytes = await image.readAsBytes();
+      final filename = 'image_$index.jpg';
+      final storageRef = firebase_storage.FirebaseStorage.instance
+          .ref()
+          .child('products')
+          .child(_productId)
+          .child(filename);
+
+      final metadata = firebase_storage.SettableMetadata(contentType: 'image/jpeg');
+      final uploadTask = storageRef.putData(bytes, metadata);
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      setState(() {
+        _images[index] = downloadUrl;
+        _uploading[index] = false;
+      });
+    } catch (e) {
+      setState(() {
+        _uploading[index] = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e')),
+      );
+    }
+  }
+
+  Widget _buildImageSlot(int index) {
+    final imageUrl = _images[index];
+    final isUploading = _uploading[index];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (imageUrl != null && imageUrl.isNotEmpty) ...[
+            Positioned.fill(
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(child: Icon(Icons.broken_image_outlined, color: Colors.grey));
+                },
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _images[index] = null;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 16, color: Colors.white),
+                ),
+              ),
+            ),
+          ] else if (isUploading) ...[
+            const Center(
+              child: SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+            ),
+          ] else ...[
+            InkWell(
+              onTap: () => _pickAndUploadImage(index),
+              borderRadius: BorderRadius.circular(12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_a_photo_outlined, color: Colors.grey.shade400),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Image ${index + 1}',
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sample = _editing ?? context.read<AppState>().allProducts.first;
@@ -268,7 +398,26 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _field(_name, 'Product name', Icons.inventory_2_outlined),
-          _field(_category, 'Category', Icons.category_outlined),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: DropdownButtonFormField<String>(
+              value: ['Men Wallets', 'Passport Holders', 'Men Belts', 'Women Wallets'].contains(_category.text)
+                  ? _category.text
+                  : 'Men Wallets',
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.category_outlined),
+                labelText: 'Category',
+              ),
+              items: ['Men Wallets', 'Passport Holders', 'Men Belts', 'Women Wallets']
+                  .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  _category.text = val;
+                }
+              },
+            ),
+          ),
           Row(
             children: [
               Expanded(child: _field(_price, 'Price', Icons.currency_rupee, keyboard: TextInputType.number)),
@@ -298,7 +447,27 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           ),
           _field(_sourceUrl, 'Source URL', Icons.open_in_new),
           _field(_description, 'Description', Icons.description_outlined, maxLines: 4),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
+          Text(
+            'Product Images (5 slots)',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 1.0,
+            ),
+            itemCount: 5,
+            itemBuilder: (context, index) {
+              return _buildImageSlot(index);
+            },
+          ),
+          const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () {
               final stockVal = int.tryParse(_stock.text) ?? sample.stock;
@@ -314,8 +483,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               if (customDiscount > 0) {
                 price = oldPrice - (oldPrice * customDiscount / 100).round();
               }
+
+              final nonNullableImages = _images.where((img) => img != null && img.isNotEmpty).toList();
+              if (nonNullableImages.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('atleast single image must be uploaded')),
+                );
+                return;
+              }
+
               final product = sample.copyWith(
-                productId: _editing?.productId ?? 'MOSPL-ADMIN-${DateTime.now().millisecondsSinceEpoch}',
+                productId: _productId,
                 name: _name.text.trim(),
                 category: _category.text.trim(),
                 subcategory: _category.text.trim(),
@@ -330,6 +508,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 description: _description.text.trim(),
                 sourceUrl: _sourceUrl.text.trim().isEmpty ? 'Not Specified' : _sourceUrl.text.trim(),
                 sku: _editing?.sku ?? 'ADMIN-${DateTime.now().millisecondsSinceEpoch}',
+                thumbnail: nonNullableImages.first!,
+                galleryImages: nonNullableImages.cast<String>().toList(),
                 createdAt: _editing?.createdAt ?? DateTime.now(),
                 updatedAt: DateTime.now(),
               );
