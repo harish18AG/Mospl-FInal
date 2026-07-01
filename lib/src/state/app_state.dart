@@ -1526,7 +1526,7 @@ class AppState extends ChangeNotifier {
   /// Reduces stock locally and in Firestore for every product in the order.
   void _decrementStockForOrder(AppOrder order) {
     // If firebase is ready, we always update the 'products' collection in Firestore so the stock count decrements permanently.
-    // This acts as a robust override since the backend might run in in-memory fallback mode or lose the product state on restarts.
+    // Use FieldValue.increment(-qty) instead of an absolute value to be race-safe.
     final db = _firebaseReady ? firestore.FirebaseFirestore.instance : null;
     final isUserAdmin = currentUser?.isAdmin == true;
 
@@ -1538,10 +1538,13 @@ class AppState extends ChangeNotifier {
       if (index >= 0) {
         final newStock = (_allProducts[index].stock - qty).clamp(0, 99999);
         _allProducts[index] = _allProducts[index].copyWith(stock: newStock, updatedAt: DateTime.now());
-        // Persist updated stock to Firestore
+        // Persist updated stock to Firestore using atomic increment (race-safe)
         if (db != null) {
           db.collection('products').doc(productId).set(
-            {'stock': newStock, 'updatedAt': DateTime.now().toIso8601String()},
+            {
+              'stock': firestore.FieldValue.increment(-qty),
+              'updatedAt': DateTime.now().toIso8601String(),
+            },
             firestore.SetOptions(merge: true),
           ).ignore();
 
@@ -1549,7 +1552,7 @@ class AppState extends ChangeNotifier {
           // or in local/fallback mode (backendToken == null).
           if (isUserAdmin || backendToken == null) {
             db.collection('inventory').doc(productId).set(
-              {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
+              {'stock': firestore.FieldValue.increment(-qty), 'lastRestockedAt': DateTime.now().toIso8601String()},
               firestore.SetOptions(merge: true),
             ).ignore();
           }
@@ -2309,6 +2312,17 @@ class AppState extends ChangeNotifier {
           'subtotal': line.subtotal,
           'createdAt': order.createdAt.toIso8601String(),
         }, firestore.SetOptions(merge: true));
+        // ── Atomically decrement stock for each ordered item ─────────────────
+        // Using FieldValue.increment(-qty) instead of an absolute value to be
+        // race-safe and to ensure this always runs regardless of backend token.
+        batch.set(
+          db.collection('products').doc(product.productId),
+          {
+            'stock': firestore.FieldValue.increment(-line.quantity),
+            'updatedAt': DateTime.now().toIso8601String(),
+          },
+          firestore.SetOptions(merge: true),
+        );
       }
       await batch.commit();
       catalogError = null;
