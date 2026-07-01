@@ -1525,9 +1525,11 @@ class AppState extends ChangeNotifier {
 
   /// Reduces stock locally and in Firestore for every product in the order.
   void _decrementStockForOrder(AppOrder order) {
-    // Only write stock updates directly to Firestore when operating in local/fallback mode (backendToken == null).
-    // When backendToken is present, the backend handles stock decrement, and the client should only update its local in-memory state.
-    final db = (_firebaseReady && backendToken == null) ? firestore.FirebaseFirestore.instance : null;
+    // If firebase is ready, we always update the 'products' collection in Firestore so the stock count decrements permanently.
+    // This acts as a robust override since the backend might run in in-memory fallback mode or lose the product state on restarts.
+    final db = _firebaseReady ? firestore.FirebaseFirestore.instance : null;
+    final isUserAdmin = currentUser?.isAdmin == true;
+
     for (final line in order.items) {
       final productId = line.product.productId;
       final qty = line.quantity;
@@ -1542,10 +1544,15 @@ class AppState extends ChangeNotifier {
             {'stock': newStock, 'updatedAt': DateTime.now().toIso8601String()},
             firestore.SetOptions(merge: true),
           ).ignore();
-          db.collection('inventory').doc(productId).set(
-            {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
-            firestore.SetOptions(merge: true),
-          ).ignore();
+
+          // Only write to 'inventory' if the user is an admin (customers get permission error)
+          // or in local/fallback mode (backendToken == null).
+          if (isUserAdmin || backendToken == null) {
+            db.collection('inventory').doc(productId).set(
+              {'stock': newStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
+              firestore.SetOptions(merge: true),
+            ).ignore();
+          }
         }
       }
     }

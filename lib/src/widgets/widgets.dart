@@ -10,6 +10,9 @@ import 'package:shimmer/shimmer.dart';
 import '../models.dart';
 import '../state/app_state.dart';
 
+// Global cache to store decoded base64 image bytes, avoiding parsing/garbage collection churn on every rebuild.
+final Map<String, Uint8List> _base64ImageCache = {};
+
 class MosplLogo extends StatelessWidget {
   const MosplLogo({super.key, this.size = 38});
 
@@ -99,14 +102,19 @@ class ProductImage extends StatelessWidget {
   Widget build(BuildContext context) {
     var resolvedUrl = url;
     if (resolvedUrl.startsWith('data:image/') && resolvedUrl.contains(';base64,')) {
-      final base64String = resolvedUrl.substring(resolvedUrl.indexOf(';base64,') + 8);
       try {
-        final bytes = base64.decode(base64String.trim());
+        Uint8List? bytes = _base64ImageCache[resolvedUrl];
+        if (bytes == null) {
+          final base64String = resolvedUrl.substring(resolvedUrl.indexOf(';base64,') + 8);
+          bytes = base64.decode(base64String.trim());
+          _base64ImageCache[resolvedUrl] = bytes;
+        }
         final img = Image.memory(
           bytes,
           height: height,
           width: width,
           fit: fit,
+          gaplessPlayback: true, // Prevents visual blink/flash when the widget is rebuilt
           errorBuilder: (context, error, stackTrace) => Image.asset(
             'assets/products/product_fallback.png',
             height: height,
