@@ -1526,36 +1526,42 @@ class AppState extends ChangeNotifier {
   /// Reduces stock locally and in Firestore for every product in the order.
   void _decrementStockForOrder(AppOrder order) {
     // If firebase is ready, we always update the 'products' collection in Firestore so the stock count decrements permanently.
-    // Use FieldValue.increment(-qty) instead of an absolute value to be race-safe.
+    // We read the current stock first and clamp to 0 to prevent negative stock values.
     final db = _firebaseReady ? firestore.FirebaseFirestore.instance : null;
     final isUserAdmin = currentUser?.isAdmin == true;
 
     for (final line in order.items) {
       final productId = line.product.productId;
       final qty = line.quantity;
-      // Update local in-memory list
+      // Update local in-memory list (clamped to 0)
       final index = _allProducts.indexWhere((p) => p.productId == productId);
       if (index >= 0) {
         final newStock = (_allProducts[index].stock - qty).clamp(0, 99999);
         _allProducts[index] = _allProducts[index].copyWith(stock: newStock, updatedAt: DateTime.now());
-        // Persist updated stock to Firestore using atomic increment (race-safe)
+        // Persist updated stock to Firestore — read first, then write clamped value
         if (db != null) {
-          db.collection('products').doc(productId).set(
-            {
-              'stock': firestore.FieldValue.increment(-qty),
-              'updatedAt': DateTime.now().toIso8601String(),
-            },
-            firestore.SetOptions(merge: true),
-          ).ignore();
-
-          // Only write to 'inventory' if the user is an admin (customers get permission error)
-          // or in local/fallback mode (backendToken == null).
-          if (isUserAdmin || backendToken == null) {
-            db.collection('inventory').doc(productId).set(
-              {'stock': firestore.FieldValue.increment(-qty), 'lastRestockedAt': DateTime.now().toIso8601String()},
+          db.collection('products').doc(productId).get().then((snap) {
+            final currentStock = snap.exists
+                ? ((snap.data()?['stock'] as num?)?.toInt() ?? 0)
+                : 0;
+            final clampedStock = (currentStock - qty).clamp(0, 99999);
+            db.collection('products').doc(productId).set(
+              {
+                'stock': clampedStock,
+                'updatedAt': DateTime.now().toIso8601String(),
+              },
               firestore.SetOptions(merge: true),
             ).ignore();
-          }
+
+            // Only write to 'inventory' if the user is an admin (customers get permission error)
+            // or in local/fallback mode (backendToken == null).
+            if (isUserAdmin || backendToken == null) {
+              db.collection('inventory').doc(productId).set(
+                {'stock': clampedStock, 'lastRestockedAt': DateTime.now().toIso8601String()},
+                firestore.SetOptions(merge: true),
+              ).ignore();
+            }
+          }).ignore();
         }
       }
     }

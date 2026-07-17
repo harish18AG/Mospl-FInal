@@ -77,6 +77,19 @@ async function saveFirestoreOrder(req, items) {
   };
 
   const orderRef = db.collection('orders').doc(orderId);
+
+  // Fetch current stock for each item to clamp decrement at 0
+  const stockSnapshots = await Promise.all(
+    items.map((item) => db.collection('products').doc(item.productId).get())
+  );
+  const currentStocks = {};
+  stockSnapshots.forEach((snap) => {
+    if (snap.exists) {
+      const data = snap.data();
+      currentStocks[data.productId] = Math.max(0, Number(data.stock ?? 0));
+    }
+  });
+
   const batch = db.batch();
   batch.set(orderRef, order);
   items.forEach((item, index) => {
@@ -89,15 +102,16 @@ async function saveFirestoreOrder(req, items) {
       createdAt: timestamp,
     });
 
-    // Decrement stock in products and inventory
-    const decrementValue = -Number(item.quantity);
+    // Decrement stock but never go below 0
+    const currentStock = currentStocks[item.productId] ?? 0;
+    const newStock = Math.max(0, currentStock - Number(item.quantity));
     batch.set(db.collection('products').doc(item.productId), {
-      stock: admin.firestore.FieldValue.increment(decrementValue),
+      stock: newStock,
       updatedAt: timestamp,
     }, { merge: true });
 
     batch.set(db.collection('inventory').doc(item.productId), {
-      stock: admin.firestore.FieldValue.increment(decrementValue),
+      stock: newStock,
     }, { merge: true });
   });
   batch.set(db.collection('carts').doc(req.user.uid), { userId: req.user.uid, items: [], updatedAt: timestamp }, { merge: true });

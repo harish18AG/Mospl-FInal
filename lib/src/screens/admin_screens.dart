@@ -187,7 +187,7 @@ class AdminProductsScreen extends StatelessWidget {
             child: ListTile(
               leading: SizedBox(width: 54, height: 54, child: ProductImage(url: product.thumbnail, fit: BoxFit.contain)),
               title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text('${product.sku} • Stock ${product.stock} • ${product.priceLabel}'),
+              subtitle: Text('${product.sku} • Stock ${product.stock < 0 ? 0 : product.stock} • ${product.priceLabel}'),
               trailing: PopupMenuButton<String>(
                 onSelected: (value) {
                   if (value == 'edit') context.push('/admin/products/edit/${product.productId}');
@@ -969,7 +969,7 @@ class AdminInventoryScreen extends StatelessWidget {
               subtitle: Text('SKU ${product.sku}'),
               trailing: TextButton(
                 onPressed: () => _showStockDialog(context, product),
-                child: Text('Stock ${product.stock}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                child: Text('Stock ${product.stock < 0 ? 0 : product.stock}', style: const TextStyle(fontWeight: FontWeight.w900)),
               ),
             ),
           );
@@ -1352,10 +1352,10 @@ class _StockDialogState extends State<_StockDialog> {
       return;
     }
 
-    if (val < 1) {
+    if (val < 0) {
       widget.messenger.showSnackBar(
         const SnackBar(
-          content: Text('Stock must be at least 1'),
+          content: Text('Stock cannot be negative'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1389,8 +1389,8 @@ class _StockDialogState extends State<_StockDialog> {
           StockLimitTextInputFormatter(),
         ],
         decoration: const InputDecoration(
-          labelText: 'Stock (1 – 30)',
-          hintText: 'Enter a value between 1 and 30',
+          labelText: 'Stock (0 – 30)',
+          hintText: 'Enter a value between 0 and 30',
         ),
         onSubmitted: (_) => _submit(),
       ),
