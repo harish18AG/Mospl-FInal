@@ -961,7 +961,6 @@ class AppState extends ChangeNotifier {
       loadOrders(notify: false),
       loadNotifications(notify: false),
       loadReviews(notify: false),
-      loadChatHistory(notify: false),
       loadPaymentHistory(notify: false),
       loadReturns(notify: false),
       loadSupportTickets(notify: false),
@@ -1241,17 +1240,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadChatHistory({bool notify = true}) async {
-    if (backendToken == null) return;
-    try {
-      final saved = await _apiClient.fetchChatHistory(backendToken!);
-      if (saved.isNotEmpty) {
-        chatMessages
-          ..clear()
-          ..addAll(saved);
-      }
-    } catch (error) {
-      catalogError = error.toString();
-    }
+    // Chat is session-local — do not sync history across devices.
+    // Each new login/session starts with a fresh empty chat.
+    chatMessages.clear();
     if (notify) notifyListeners();
   }
 

@@ -60,40 +60,8 @@ const sendMessage = asyncHandler(async (req, res) => {
 
   const now = new Date().toISOString();
 
-  // 2. Persist messages and reply
-  if (isFirebaseConfigured && db) {
-    const userRef = db.collection('chatbot_messages').doc();
-    const botRef = db.collection('chatbot_messages').doc();
-    const userMessage = {
-      messageId: userRef.id,
-      userId,
-      text,
-      isUser: true,
-      createdAt: now,
-    };
-    const botMessage = {
-      messageId: botRef.id,
-      userId,
-      text: geminiResponse.text,
-      isUser: false,
-      recommendedProductIds: geminiResponse.recommendedProductIds,
-      createdAt: now,
-    };
-    const batch = db.batch();
-    batch.set(userRef, userMessage);
-    batch.set(botRef, botMessage);
-    await batch.commit();
-    res.status(201).json({ ok: true, message: botMessage });
-    return;
-  }
-
-  const userMessage = {
-    messageId: `msg_${Date.now()}_user`,
-    userId,
-    text,
-    isUser: true,
-    createdAt: now,
-  };
+  // Chat is session-local — messages are not persisted to Firestore.
+  // Return the bot reply directly without storing anything.
   const botMessage = {
     messageId: `msg_${Date.now()}_bot`,
     userId,
@@ -102,21 +70,12 @@ const sendMessage = asyncHandler(async (req, res) => {
     recommendedProductIds: geminiResponse.recommendedProductIds,
     createdAt: now,
   };
-  store.chatbotMessages.push(userMessage, botMessage);
   res.status(201).json({ ok: true, message: botMessage });
 });
 
 const history = asyncHandler(async (req, res) => {
-  if (isFirebaseConfigured && db) {
-    const snapshot = await db.collection('chatbot_messages').where('userId', '==', req.user.uid).get();
-    const messages = snapshot.docs
-      .map((doc) => ({ messageId: doc.id, ...doc.data() }))
-      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
-    res.json({ ok: true, messages });
-    return;
-  }
-  const messages = store.chatbotMessages.filter((message) => message.userId === req.user.uid);
-  res.json({ ok: true, messages });
+  // Chat is session-local — history is not stored server-side.
+  res.json({ ok: true, messages: [] });
 });
 
 module.exports = { sendMessage, history };
