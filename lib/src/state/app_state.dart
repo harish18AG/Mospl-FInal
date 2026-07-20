@@ -1145,26 +1145,43 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addAddress(ShippingAddress address) async {
-    if (_firebaseUid != null) {
-      final addressToStore = await _saveFirestoreAddress(address);
-      _upsertLocalAddress(addressToStore);
+    // On web, Firebase Auth restores its session asynchronously, so _firebaseUid
+    // may be null briefly after page load even when the user is signed in. We
+    // await the sync so the UID is definitely available before we write.
+    if (_firebaseUid == null && backendToken == null) {
+      await _syncBackendFirebaseSession();
+    }
+
+    // ── Firebase-direct path (no backend token yet) ──────────────────────────
+    if (backendToken == null) {
+      // Generate a stable doc ID now so local + Firestore stay in sync.
+      final docId = address.id.isEmpty ? _uuid.v4() : address.id;
+      final addressWithId = ShippingAddress(
+        id: docId,
+        name: address.name,
+        phone: address.phone,
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+        isDefault: address.isDefault,
+      );
+      // Always save locally first so the address survives even if Firestore fails.
+      _upsertLocalAddress(addressWithId);
       await _saveLocalAddresses();
       notifyListeners();
-      if (backendToken != null) {
-        _apiClient.createAddress(address, backendToken!).ignore();
+      // Attempt Firestore write in background — if it fails, local copy remains.
+      if (_firebaseUid != null) {
+        _saveFirestoreAddress(addressWithId).catchError((error) {
+          catalogError = error.toString();
+          notifyListeners();
+        });
       }
       return;
     }
-    if (backendToken == null) {
-      _syncBackendFirebaseSession().ignore();
-    }
-    if (backendToken == null) {
-      final addressToStore = await _saveFirestoreAddress(address);
-      _upsertLocalAddress(addressToStore);
-      await _saveLocalAddresses();
-      notifyListeners();
-      return;
-    }
+
+    // ── Backend-token path ───────────────────────────────────────────────────
     late final ShippingAddress addressToStore;
     try {
       addressToStore = await _apiClient.createAddress(address, backendToken!);
@@ -1175,6 +1192,10 @@ class AppState extends ChangeNotifier {
     }
     _upsertLocalAddress(addressToStore);
     await _saveLocalAddresses();
+    // Also mirror to Firestore so mobile and web stay in sync.
+    if (_firebaseUid != null) {
+      _saveFirestoreAddress(addressToStore).catchError((_) {});
+    }
     notifyListeners();
   }
 
