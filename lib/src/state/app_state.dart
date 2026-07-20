@@ -1144,6 +1144,11 @@ class AppState extends ChangeNotifier {
     } catch (error) {
       catalogError = error.toString();
     }
+    // Fallback to Firestore if backend returned no addresses but Firebase is ready.
+    // This handles local backend runs where the local backend db is empty/unconfigured.
+    if (addresses.isEmpty && _firebaseUid != null) {
+      await _loadFirestoreAddresses();
+    }
     if (notify) notifyListeners();
   }
 
@@ -3089,7 +3094,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _applyAuthSession(AuthSession session) {
-    final hadToken = backendToken != null;
+    final oldToken = backendToken;
     backendToken = session.token;
     if (session.user != null) currentUser = session.user;
     // Start real-time Firestore streams as soon as we have a Firebase UID.
@@ -3097,9 +3102,9 @@ class AppState extends ChangeNotifier {
     // (e.g. Render cold-start forced a retry).
     final uid = _firebaseUid;
     if (uid != null) _startRealtimeSync(uid);
-    // Also do a one-shot reload if we just obtained a token for the first time
+    // Also do a one-shot reload if we just obtained a token or if the token changed/refreshed
     // to immediately populate all authenticated details (cart, wishlist, and admin data if applicable).
-    if (!hadToken && backendToken != null) {
+    if (backendToken != null && (oldToken == null || oldToken != backendToken)) {
       loadAuthenticatedData(notify: true).ignore();
     }
   }
