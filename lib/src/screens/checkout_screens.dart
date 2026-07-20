@@ -434,8 +434,8 @@ class _AddressListScreenState extends State<AddressListScreen> {
   @override
   void initState() {
     super.initState();
-    // Refresh addresses every time this screen opens so that any Firestore
-    // changes (e.g. from another device) are reflected immediately.
+    // Always do a background refresh when the screen opens.
+    // Cached addresses show instantly; the network fetch updates silently.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<AppState>().loadAddresses();
     });

@@ -1123,7 +1123,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadAddresses({bool notify = true}) async {
+    // Show cached addresses immediately — don't wait for the network.
     await _loadLocalAddresses();
+    if (notify && addresses.isNotEmpty) notifyListeners();
+
     if (backendToken == null) {
       _syncBackendFirebaseSession().ignore();
     }
@@ -3028,7 +3031,7 @@ class AppState extends ChangeNotifier {
       _applyAuthSession(await _apiClient.loginSession(email: email.trim(), password: password));
     } catch (_) {
       // First attempt failed (e.g. Render cold start). Wait and retry once.
-      await Future<void>.delayed(const Duration(seconds: 10));
+      await Future<void>.delayed(const Duration(seconds: 3));
       try {
         _applyAuthSession(await _apiClient.loginSession(email: email.trim(), password: password));
       } catch (_) {
@@ -3076,9 +3079,8 @@ class AppState extends ChangeNotifier {
         return; // success
       } catch (_) {
         if (attempt < 2) {
-          // Short back-off: 2 s then 4 s (was 8 s / 16 s) so Render cold-starts
-          // don't block the UI for more than ~6 seconds total.
-          await Future<void>.delayed(Duration(seconds: (attempt + 1) * 2));
+          // Short back-off: 500 ms then 1 s — Render usually wakes within 1-2 s.
+          await Future<void>.delayed(Duration(milliseconds: (attempt + 1) * 500));
         } else {
           backendToken = null;
         }
