@@ -423,8 +423,23 @@ class _CouponSectionState extends State<_CouponSection> {
   }
 }
 
-class AddressListScreen extends StatelessWidget {
+class AddressListScreen extends StatefulWidget {
   const AddressListScreen({super.key});
+
+  @override
+  State<AddressListScreen> createState() => _AddressListScreenState();
+}
+
+class _AddressListScreenState extends State<AddressListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Refresh addresses every time this screen opens so that any Firestore
+    // changes (e.g. from another device) are reflected immediately.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AppState>().loadAddresses();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

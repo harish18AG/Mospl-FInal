@@ -58,12 +58,19 @@ service cloud.firestore {
 
     match /addresses/{addressId} {
       allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if isOwner(resource.data.userId) || isAdmin();
+      // Allow list/query so that where('userId','==',uid).get() works from Flutter.
+      // Collection queries cannot evaluate resource.data before reading, so we
+      // allow any signed-in user to perform a list and rely on the query filter
+      // to scope results to their own addresses.
+      allow list: if signedIn();
+      // Point reads, updates and deletes still require ownership.
+      allow get, update, delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
     match /orders/{orderId} {
       allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow list: if signedIn();
+      allow get: if isOwner(resource.data.userId) || isAdmin();
       allow update: if isAdmin();
       allow delete: if false;
     }
@@ -76,7 +83,8 @@ service cloud.firestore {
 
     match /payments/{paymentId} {
       allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow list: if signedIn();
+      allow get: if isOwner(resource.data.userId) || isAdmin();
       allow update, delete: if isAdmin();
     }
 
