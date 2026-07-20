@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../models.dart';
 import '../services/razorpay_service.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
 
 class CartScreen extends StatelessWidget {
@@ -58,22 +59,77 @@ class _CartLineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.darkCard : AppColors.ivoryWhite;
+    final borderCol = isDark ? AppColors.darkBorder : AppColors.softBeige;
+    final shadowCol = isDark 
+        ? Colors.black.withValues(alpha: 0.2)
+        : AppColors.espressoBrown.withValues(alpha: 0.06);
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderCol, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: shadowCol,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(10),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(width: 90, height: 90, child: ProductImage(url: line.product.thumbnail, fit: BoxFit.contain)),
+            // Thumbnail — fixed 90×90 square with warm ivory bg
+            SizedBox(
+              width: 90,
+              height: 90,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkInputFill : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: ProductImage(
+                    url: line.product.thumbnail,
+                    fit: BoxFit.contain,
+                    width: 90,
+                    height: 90,
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(width: 10),
+            // Details — same order as original: name → color/size → price → qty+remove
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(line.product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  Text('${line.product.color} • ${line.product.size}'),
+                  Text(
+                    line.product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${line.product.color} • ${line.product.size}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
+                  ),
                   const SizedBox(height: 6),
                   PriceRow(product: line.product),
                   const SizedBox(height: 8),
@@ -82,11 +138,26 @@ class _CartLineCard extends StatelessWidget {
                       QuantityStepper(
                         quantity: line.quantity,
                         max: line.product.stock,
-                        onChanged: (qty) => context.read<AppState>().setCartQuantity(line.product.productId, qty),
+                        onChanged: (qty) => context
+                            .read<AppState>()
+                            .setCartQuantity(line.product.productId, qty),
                       ),
                       const Spacer(),
                       TextButton(
-                        onPressed: () => context.read<AppState>().removeFromCart(line.product.productId),
+                        onPressed: () => context
+                            .read<AppState>()
+                            .removeFromCart(line.product.productId),
+                        style: TextButton.styleFrom(
+                          foregroundColor:
+                              AppColors.leatherBrown.withValues(alpha: 0.75),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         child: const Text('Remove'),
                       ),
                     ],
@@ -105,37 +176,62 @@ class _PriceSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    return Card(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.darkCard : AppColors.ivoryWhite;
+    final borderCol = isDark ? AppColors.darkBorder : AppColors.softBeige;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderCol, width: 1),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Price Details', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 12),
-            _row('Subtotal', inr(state.cartSubtotal)),
-            _row('Delivery', state.deliveryFee == 0 ? 'Free' : inr(state.deliveryFee)),
+            Text('Price Details',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _row(context, 'Subtotal', inr(state.cartSubtotal)),
+            _row(context, 'Delivery', state.deliveryFee == 0 ? 'Free' : inr(state.deliveryFee)),
             if (state.cartDiscount > 0)
-              _row('Coupon savings', '-${inr(state.cartDiscount)}', positive: true),
-            const Divider(height: 24),
-            _row('Total', inr(state.cartTotal), bold: true),
+              _row(context, 'Coupon savings', '-${inr(state.cartDiscount)}', positive: true),
+            Divider(height: 24, color: AppColors.softBeige),
+            _row(context, 'Total', inr(state.cartTotal), bold: true),
           ],
         ),
       ),
     );
   }
 
-  Widget _row(String label, String value, {bool bold = false, bool positive = false}) {
+  Widget _row(BuildContext context, String label, String value, {bool bold = false, bool positive = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textCol = isDark ? const Color(0xff9E8E7E) : AppColors.secondaryText;
+    final mainCol = Theme.of(context).colorScheme.onSurface;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w900 : FontWeight.normal))),
+          Expanded(child: Text(label,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+              color: bold ? mainCol : textCol,
+              fontSize: bold ? 15 : 13,
+            ),
+          )),
           Text(
             value,
             style: TextStyle(
-              fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
-              color: positive ? const Color(0xff12833b) : null,
+              fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+              color: positive ? AppColors.successGreen : (bold ? AppColors.leatherBrown : mainCol),
+              fontSize: bold ? 16 : 13,
             ),
           ),
         ],
@@ -357,11 +453,47 @@ class AddressListScreen extends StatelessWidget {
               );
             }
             final address = addresses[index];
-            return Card(
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final cardBg = isDark ? AppColors.darkCard : AppColors.ivoryWhite;
+            final borderCol = isDark ? AppColors.darkBorder : AppColors.softBeige;
+            final shadowCol = isDark 
+                ? Colors.black.withValues(alpha: 0.15)
+                : AppColors.espressoBrown.withValues(alpha: 0.05);
+
+            return Container(
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderCol, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: shadowCol,
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
               child: ListTile(
-                leading: const Icon(Icons.home_outlined),
-                title: Text(address.name),
-                subtitle: Text('${address.line1}, ${address.line2}\n${address.city}, ${address.state} - ${address.pincode}\n${address.phone}'),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkInputFill : const Color(0xffF5EDE3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.home_outlined, color: isDark ? const Color(0xffD4B896) : AppColors.leatherBrown, size: 20),
+                ),
+                title: Text(
+                  address.name,
+                  style: TextStyle(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(
+                    '${address.line1}, ${address.line2}\n${address.city}, ${address.state} - ${address.pincode}\n${address.phone}',
+                    style: const TextStyle(height: 1.4),
+                  ),
+                ),
                 isThreeLine: true,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -370,7 +502,10 @@ class AddressListScreen extends StatelessWidget {
                     IconButton(
                       tooltip: 'Delete address',
                       onPressed: () => context.read<AppState>().deleteAddress(address.id),
-                      icon: const Icon(Icons.delete_outline),
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: AppColors.errorRed.withValues(alpha: 0.8),
+                      ),
                     ),
                   ],
                 ),

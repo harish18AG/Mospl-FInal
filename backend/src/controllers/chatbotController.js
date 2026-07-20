@@ -7,14 +7,31 @@ const faqService = require('../services/faqService');
 const productSearchService = require('../services/productSearchService');
 const orderSupportService = require('../services/orderSupportService');
 const store = require('../services/store');
+const { hasProfanity } = require('../utils/moderation');
 
 const sendMessage = asyncHandler(async (req, res) => {
   const text = req.body.text || '';
-  const userId = req.user.uid;
+  const userId = req.user ? req.user.uid : 'guest';
+
+  // Check for profanity / inappropriate language
+  if (hasProfanity(text)) {
+    const now = new Date().toISOString();
+    const botMessage = {
+      messageId: `msg_${Date.now()}_bot`,
+      userId,
+      text: "I can only help you with questions about MOSPL leather products, ordering, or returns. Please keep the conversation respectful and avoid using inappropriate language.",
+      isUser: false,
+      recommendedProductIds: [],
+      createdAt: now,
+    };
+    res.status(201).json({ ok: true, message: botMessage });
+    return;
+  }
 
   // 1. Detect Intent
   const intent = intentService.detectIntent(text);
   let geminiResponse;
+
 
   if (intent === intentService.INTENTS.GEMINI) {
     // Load products catalog and chat history only when calling Gemini
@@ -44,10 +61,18 @@ const sendMessage = asyncHandler(async (req, res) => {
       products
     });
   } else if (intent === intentService.INTENTS.ORDER_SUPPORT) {
-    geminiResponse = await orderSupportService.handleOrderSupport({
-      userId,
-      text
-    });
+    if (userId === 'guest') {
+      geminiResponse = {
+        text: "Please sign in to your MOSPL account to view order details, track shipments, or raise support tickets.",
+        recommendedProductIds: []
+      };
+    } else {
+      geminiResponse = await orderSupportService.handleOrderSupport({
+        userId,
+        text
+      });
+    }
+
   } else if (intent === intentService.INTENTS.PRODUCT_SEARCH) {
     geminiResponse = await productSearchService.searchProductsLocally(text);
   } else {

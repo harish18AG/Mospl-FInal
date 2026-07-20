@@ -18,7 +18,7 @@ class AppState extends ChangeNotifier {
       : _apiClient = apiClient ?? ApiClient(),
         _allProducts = buildMosplProducts(),
         coupons = buildCoupons() {
-    categories = buildCategories(_allProducts);
+    _updateCategoriesList();
     _seedLocalData();
   }
 
@@ -27,7 +27,37 @@ class AppState extends ChangeNotifier {
   List<Coupon> coupons;
   Coupon? appliedCoupon;   // currently applied coupon (null = none)
   late List<ProductCategory> categories;
+  List<ProductCategory> _customCategories = [];
   final _uuid = const Uuid();
+
+  void _updateCategoriesList() {
+    final dynamicCategories = buildCategories(_allProducts);
+    final Map<String, ProductCategory> merged = {};
+
+    // 1. Add all dynamic categories (derived from active products)
+    for (final cat in dynamicCategories) {
+      merged[cat.name.toLowerCase()] = cat;
+    }
+
+    // 2. Add or update with custom created categories (even if they have 0 products)
+    for (final cat in _customCategories) {
+      final key = cat.name.toLowerCase();
+      final existingCount = _allProducts.where((p) => p.category.toLowerCase() == key).length;
+      final imageUrl = existingCount > 0
+          ? _allProducts.firstWhere((p) => p.category.toLowerCase() == key).thumbnail
+          : cat.imageUrl;
+
+      merged[key] = ProductCategory(
+        id: cat.id,
+        name: cat.name,
+        subtitle: cat.subtitle,
+        imageUrl: imageUrl.isEmpty ? 'assets/images/placeholder.jpg' : imageUrl,
+        productCount: existingCount,
+      );
+    }
+
+    categories = merged.values.toList();
+  }
 
   AppUser? currentUser;
   bool authLoading = false;
@@ -171,8 +201,25 @@ class AppState extends ChangeNotifier {
           list.sort((a, b) => getProductLiveRating(b.productId).compareTo(getProductLiveRating(a.productId)));
         case 'Newest':
           list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        case 'Best Reviewed':
+          // Sort purely by composite NLP score (stars + text sentiment + volume)
+          list.sort((a, b) => getProductNlpScore(b.productId).compareTo(getProductNlpScore(a.productId)));
         default:
+          // Recommended: boost by NLP score if any product has reviews,
+          // otherwise fall back to best-seller / trending flags.
+          final anyHasReviews = reviews.isNotEmpty;
           list.sort((a, b) {
+            if (anyHasReviews) {
+              final aNlp = getProductNlpScore(a.productId);
+              final bNlp = getProductNlpScore(b.productId);
+              // Products with reviews get ranked by NLP score;
+              // products without reviews are pushed below reviewed ones.
+              final aHasReviews = getProductLiveReviewCount(a.productId) > 0;
+              final bHasReviews = getProductLiveReviewCount(b.productId) > 0;
+              if (aHasReviews != bHasReviews) return aHasReviews ? -1 : 1;
+              if ((bNlp - aNlp).abs() > 0.001) return bNlp.compareTo(aNlp);
+            }
+            // Tie-break by best-seller / trending flags
             final aScore = (a.isBestSeller ? 2 : 0) + (a.isTrending ? 1 : 0);
             final bScore = (b.isBestSeller ? 2 : 0) + (b.isTrending ? 1 : 0);
             return bScore.compareTo(aScore);
@@ -183,29 +230,50 @@ class AppState extends ChangeNotifier {
     return _cachedVisibleProducts!;
   }
 
+  void _sortProductsByNlp(List<Product> list) {
+    final anyHasReviews = reviews.isNotEmpty;
+    if (!anyHasReviews) return;
+    list.sort((a, b) {
+      final aNlp = getProductNlpScore(a.productId);
+      final bNlp = getProductNlpScore(b.productId);
+      final aHasReviews = getProductLiveReviewCount(a.productId) > 0;
+      final bHasReviews = getProductLiveReviewCount(b.productId) > 0;
+      if (aHasReviews != bHasReviews) return aHasReviews ? -1 : 1;
+      if ((bNlp - aNlp).abs() > 0.001) return bNlp.compareTo(aNlp);
+      return 0;
+    });
+  }
+
   List<Product> get featuredProducts {
     if (_cachedFeaturedProducts == null) {
-      final flagged = allProducts.where((p) => p.isFeatured).take(16).toList();
-      _cachedFeaturedProducts = List.unmodifiable(flagged.isEmpty ? allProducts.take(16).toList() : flagged);
+      final flagged = allProducts.where((p) => p.isFeatured).toList();
+      final pool = flagged.isEmpty ? allProducts.toList() : flagged;
+      _sortProductsByNlp(pool);
+      _cachedFeaturedProducts = List.unmodifiable(pool.take(16).toList());
     }
     return _cachedFeaturedProducts!;
   }
 
   List<Product> get trendingProducts {
     if (_cachedTrendingProducts == null) {
-      final flagged = allProducts.where((p) => p.isTrending).take(24).toList();
-      _cachedTrendingProducts = List.unmodifiable(flagged.isEmpty ? allProducts.take(24).toList() : flagged);
+      final flagged = allProducts.where((p) => p.isTrending).toList();
+      final pool = flagged.isEmpty ? allProducts.toList() : flagged;
+      _sortProductsByNlp(pool);
+      _cachedTrendingProducts = List.unmodifiable(pool.take(24).toList());
     }
     return _cachedTrendingProducts!;
   }
 
   List<Product> get bestSellers {
     if (_cachedBestSellers == null) {
-      final flagged = allProducts.where((p) => p.isBestSeller).take(16).toList();
-      _cachedBestSellers = List.unmodifiable(flagged.isEmpty ? allProducts.take(16).toList() : flagged);
+      final flagged = allProducts.where((p) => p.isBestSeller).toList();
+      final pool = flagged.isEmpty ? allProducts.toList() : flagged;
+      _sortProductsByNlp(pool);
+      _cachedBestSellers = List.unmodifiable(pool.take(16).toList());
     }
     return _cachedBestSellers!;
   }
+
 
   List<Product> get wishlistProducts {
     if (_cachedWishlistProducts == null) {
@@ -282,7 +350,8 @@ class AppState extends ChangeNotifier {
       if (backendDailyOffers.isNotEmpty) {
         dailyOffers = backendDailyOffers;
       }
-      categories = backendCategories.isEmpty ? buildCategories(_allProducts) : backendCategories;
+      _customCategories = backendCategories;
+      _updateCategoriesList();
       coupons = backendCoupons.isEmpty ? buildCoupons() : backendCoupons;
       banners
         ..clear()
@@ -296,7 +365,8 @@ class AppState extends ChangeNotifier {
       catalogError = error.toString();
       if (_allProducts.isEmpty) {
         _allProducts.addAll(buildMosplProducts());
-        categories = buildCategories(_allProducts);
+        _customCategories = [];
+        _updateCategoriesList();
         coupons = buildCoupons();
       }
     } finally {
@@ -312,9 +382,36 @@ class AppState extends ChangeNotifier {
   /// and merges them into the local catalog. Firestore products override
   /// the local fallback entry for the same productId (stock updates etc.),
   /// and newly admin-added products that don't exist locally are appended.
+  Future<void> _mergeFirestoreCategories() async {
+    if (!_firebaseReady) return;
+    try {
+      final snapshot = await firestore.FirebaseFirestore.instance
+          .collection('categories')
+          .get();
+      final List<ProductCategory> list = [];
+      for (final doc in snapshot.docs) {
+        try {
+          list.add(ProductCategory.fromMap({...doc.data(), 'id': doc.id}));
+        } catch (_) {}
+      }
+      if (list.isNotEmpty) {
+        final Map<String, ProductCategory> mergedCustoms = {};
+        for (final cat in _customCategories) {
+          mergedCustoms[cat.name.toLowerCase()] = cat;
+        }
+        for (final cat in list) {
+          mergedCustoms[cat.name.toLowerCase()] = cat;
+        }
+        _customCategories = mergedCustoms.values.toList();
+      }
+    } catch (_) {}
+  }
+
   Future<void> _mergeFirestoreProducts() async {
     if (!_firebaseReady) return;
     try {
+      await _mergeFirestoreCategories();
+
       final snapshot = await firestore.FirebaseFirestore.instance
           .collection('products')
           .get();
@@ -363,9 +460,7 @@ class AppState extends ChangeNotifier {
           }
         } catch (_) {}
       }
-      if (snapshot.docs.isNotEmpty) {
-        categories = buildCategories(_allProducts);
-      }
+      _updateCategoriesList();
     } catch (_) {}
     _invalidateProductsCache();
   }
@@ -1700,6 +1795,8 @@ class AppState extends ChangeNotifier {
       'userName': userName,
       'rating': rating,
       'comment': comment,
+      'sentimentScore': _analyzeSentiment(comment).score,
+      'sentimentLabel': _analyzeSentiment(comment).label,
       'createdAt': firestore.Timestamp.fromDate(now),
     });
 
@@ -1746,6 +1843,7 @@ class AppState extends ChangeNotifier {
     }
 
     // ── 3. Optimistically add to local list (real-time stream will update) ──
+    final sentiment = _analyzeSentiment(comment);
     final localReview = Review(
       id: docId,
       productId: productId,
@@ -1753,6 +1851,8 @@ class AppState extends ChangeNotifier {
       rating: rating,
       comment: comment,
       createdAt: now,
+      sentimentScore: sentiment.score,
+      sentimentLabel: sentiment.label,
     );
     reviews.removeWhere((item) => item.id == docId);
     reviews.insert(0, localReview);
@@ -1925,6 +2025,99 @@ class AppState extends ChangeNotifier {
   int getProductLiveReviewCount(String productId) {
     return reviews.where((r) => r.productId == productId).length;
   }
+
+  /// Composite NLP score for a product in [0, 1].
+  /// Combines star rating (50%), NLP text sentiment (30%), and review
+  /// volume confidence (20%). Products with no reviews return 0.
+  double getProductNlpScore(String productId) {
+    final prodReviews = reviews.where((r) => r.productId == productId).toList();
+    if (prodReviews.isEmpty) return 0.0;
+    final count = prodReviews.length;
+    final avgStars = prodReviews.fold<double>(0, (s, r) => s + r.rating) / count;
+    final avgSentiment = prodReviews.fold<double>(0, (s, r) => s + r.sentimentScore) / count;
+    // Normalise sentiment from [-1, 1] → [0, 1]
+    final normSentiment = (avgSentiment + 1) / 2;
+    // Volume confidence saturates at 20 reviews
+    final volumeConfidence = (count / 20).clamp(0.0, 1.0);
+    return (avgStars / 5) * 0.5 + normSentiment * 0.3 + volumeConfidence * 0.2;
+  }
+
+  // ── Client-side NLP Sentiment Engine ────────────────────────────────────────
+  // Mirrors the backend sentimentService.js logic so offline / guest reviews
+  // are scored immediately without a network round-trip.
+
+  static const _nlpPositive = {
+    'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'superb',
+    'outstanding', 'perfect', 'premium', 'genuine', 'quality', 'good', 'nice',
+    'fine', 'solid', 'sturdy', 'durable', 'lasting', 'strong',
+    'beautiful', 'gorgeous', 'elegant', 'stylish', 'classy', 'sleek',
+    'attractive', 'lovely', 'pretty',
+    'soft', 'smooth', 'supple', 'rich', 'luxurious', 'crafted', 'handcrafted',
+    'love', 'loved', 'like', 'liked', 'happy', 'satisfied', 'pleased',
+    'impressed', 'delighted', 'thrilled', 'excited', 'recommend', 'recommended',
+    'worth', 'value', 'affordable', 'reasonable',
+    'fast', 'quick', 'prompt', 'timely', 'early', 'packaged', 'safe', 'secure',
+    'best', 'top', 'awesome', 'brilliant', 'phenomenal', 'fabulous',
+  };
+
+  static const _nlpNegative = {
+    'bad', 'poor', 'cheap', 'flimsy', 'fragile', 'weak', 'thin', 'inferior',
+    'substandard', 'worst', 'terrible', 'horrible', 'awful', 'dreadful',
+    'useless', 'worthless', 'rubbish', 'garbage', 'trash',
+    'fake', 'duplicate', 'counterfeit', 'plastic', 'artificial', 'synthetic',
+    'damaged', 'broken', 'defective', 'torn', 'ripped', 'peeling', 'cracked',
+    'scratched', 'stained', 'smelly',
+    'disappointed', 'unhappy', 'unsatisfied', 'dissatisfied', 'upset',
+    'frustrated', 'angry', 'regret', 'waste', 'wasted',
+    'late', 'slow', 'delayed', 'wrong', 'missing', 'lost',
+    'returned', 'returning', 'refund', 'replacement',
+  };
+
+  static const _nlpNegations = {
+    'not', 'no', 'never', "isn't", "wasn't", "don't", "doesn't", "didn't",
+    "won't", "wouldn't", "couldn't", "can't", 'hardly', 'barely',
+  };
+
+  static const _nlpIntensifiers = {
+    'very', 'really', 'extremely', 'absolutely', 'totally', 'completely',
+    'so', 'highly', 'super', 'incredibly', 'exceptionally',
+  };
+
+  /// Analyses sentiment of a review comment text.
+  /// Returns ({score: double, label: String}) where score ∈ [−1, 1].
+  static ({double score, String label}) _analyzeSentiment(String text) {
+    if (text.trim().isEmpty) return (score: 0.0, label: 'neutral');
+    final tokens = text.toLowerCase().replaceAll(RegExp(r"[^a-z0-9\s'-]"), ' ').split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    double rawScore = 0;
+    int termCount = 0;
+    bool negated = false;
+    bool intensify = false;
+    for (final word in tokens) {
+      if (_nlpNegations.contains(word)) { negated = true; continue; }
+      if (_nlpIntensifiers.contains(word)) { intensify = true; continue; }
+      double wordScore = 0;
+      if (_nlpPositive.contains(word)) {
+        wordScore = 1;
+      } else if (_nlpNegative.contains(word)) {
+        wordScore = -1;
+      } else {
+        negated = false; intensify = false; continue;
+      }
+      if (negated) { wordScore *= -1; negated = false; }
+      if (intensify) { wordScore *= 1.5; intensify = false; }
+      rawScore += wordScore;
+      termCount++;
+    }
+    final score = termCount == 0 ? 0.0 : (rawScore / (termCount < 3 ? 3 : termCount)).clamp(-1.0, 1.0);
+    final label = score >= 0.15 ? 'positive' : (score <= -0.15 ? 'negative' : 'neutral');
+    return (score: double.parse(score.toStringAsFixed(3)), label: label);
+  }
+
+  /// Public static wrapper for the NLP sentiment engine — usable from UI widgets
+  /// without needing an AppState instance (e.g. live preview in review dialog).
+  /// Returns the sentiment label: 'positive', 'neutral', or 'negative'.
+  static String analyzeSentimentPublic(String text) => _analyzeSentiment(text).label;
+
 
   /// Start listening to real-time Firestore updates for a product's reviews.
   void subscribeProductReviews(String productId) {
@@ -2472,7 +2665,82 @@ class AppState extends ChangeNotifier {
     } else {
       _allProducts.insert(0, productToStoreClamped);
     }
-    categories = buildCategories(_allProducts);
+    _updateCategoriesList();
+    _invalidateProductsCache();
+    notifyListeners();
+  }
+
+  Future<void> createCategory({required String name, required String subtitle, required String imageUrl}) async {
+    final catId = name.toLowerCase().replaceAll(' ', '-');
+    var category = ProductCategory(
+      id: catId,
+      name: name.trim(),
+      subtitle: subtitle.trim(),
+      imageUrl: imageUrl.trim(),
+      productCount: 0,
+    );
+
+    if (_firebaseReady && backendToken == null) {
+      await _syncBackendFirebaseSession();
+    }
+
+    if (currentUser?.isAdmin == true && backendToken != null) {
+      try {
+        category = await _apiClient.createCategory(category, backendToken!);
+      } catch (error) {
+        catalogError = error.toString();
+      }
+    }
+
+    if (_firebaseReady) {
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('categories')
+            .doc(category.id)
+            .set(category.toMap(), firestore.SetOptions(merge: true));
+      } catch (error) {
+        catalogError = 'Category saved locally but Firestore write failed: $error';
+      }
+    }
+
+    final index = _customCategories.indexWhere((c) => c.name.toLowerCase() == category.name.toLowerCase());
+    if (index >= 0) {
+      _customCategories[index] = category;
+    } else {
+      _customCategories.add(category);
+    }
+
+    _updateCategoriesList();
+    _invalidateProductsCache();
+    notifyListeners();
+  }
+
+  Future<void> deleteCategory(String categoryId) async {
+    if (_firebaseReady && backendToken == null) {
+      await _syncBackendFirebaseSession();
+    }
+
+    if (currentUser?.isAdmin == true && backendToken != null) {
+      try {
+        await _apiClient.deleteCategory(categoryId, backendToken!);
+      } catch (error) {
+        catalogError = error.toString();
+      }
+    }
+
+    if (_firebaseReady) {
+      try {
+        await firestore.FirebaseFirestore.instance
+            .collection('categories')
+            .doc(categoryId)
+            .delete();
+      } catch (error) {
+        catalogError = 'Category deleted locally but Firestore delete failed: $error';
+      }
+    }
+
+    _customCategories.removeWhere((c) => c.id == categoryId);
+    _updateCategoriesList();
     _invalidateProductsCache();
     notifyListeners();
   }
@@ -2497,7 +2765,7 @@ class AppState extends ChangeNotifier {
           .ignore();
     }
     _allProducts.removeWhere((product) => product.productId == productId);
-    categories = buildCategories(_allProducts);
+    _updateCategoriesList();
     _invalidateProductsCache();
     notifyListeners();
   }
@@ -2514,6 +2782,30 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  static final Set<String> _profanityWords = {
+    'fuck', 'fucking', 'fucker', 'shit', 'shitty', 'asshole', 'bitch', 'bitches',
+    'bastard', 'cunt', 'dick', 'pussy', 'slut', 'whore', 'crap', 'bullshit',
+    'damn', 'cock', 'fag', 'faggot', 'nigger', 'chink', 'retard', 'idiot', 'stupid',
+    'jerk', 'dumbass', 'die', 'hate', 'trash', 'garbage',
+    'chutiya', 'bhenchod', 'madarchod', 'bhonsdike', 'harami', 'saala', 'kamina',
+    'gandu', 'randi', 'bhadva', 'loda', 'lauda', 'muth', 'bhosda', 'bhosdike'
+  };
+
+  bool _hasProfanity(String text) {
+    final clean = text.toLowerCase().replaceAll(RegExp(r"[^a-z0-9\s'-]"), ' ').trim();
+    final tokens = clean.split(RegExp(r'\s+'));
+    for (final token in tokens) {
+      if (_profanityWords.contains(token)) {
+        return true;
+      }
+    }
+    final lowerText = text.toLowerCase();
+    if (lowerText.contains('kill yourself') || lowerText.contains('go die') || lowerText.contains('fuck you')) {
+      return true;
+    }
+    return false;
+  }
+
   Future<void> sendChat(String text) async {
     final clean = text.trim();
     if (clean.isEmpty) return;
@@ -2521,47 +2813,60 @@ class AppState extends ChangeNotifier {
       ChatMessage(id: _uuid.v4(), text: clean, isUser: true, createdAt: DateTime.now()),
     );
     notifyListeners();
-    if (backendToken == null) {
+
+    if (_hasProfanity(clean)) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      chatMessages.add(
+        ChatMessage(
+          id: _uuid.v4(),
+          text: "I can only help you with questions about MOSPL leather products, ordering, or returns. Please keep the conversation respectful and avoid using inappropriate language.",
+          isUser: false,
+          createdAt: DateTime.now(),
+        ),
+      );
+      notifyListeners();
       await _saveGuestChatHistory();
-      await _syncBackendFirebaseSession();
+      return;
     }
-    if (backendToken != null) {
-      try {
-        final reply = await _apiClient.sendChatMessage(clean, backendToken!);
-        chatMessages.add(reply);
-        notifyListeners();
-        return;
-      } catch (error) {
-        catalogError = error.toString();
-      }
+
+    if (backendToken == null) {
+      _syncBackendFirebaseSession().ignore();
+    }
+
+    try {
+      final reply = await _apiClient.sendChatMessage(clean, token: backendToken);
+      chatMessages.add(reply);
+      notifyListeners();
+      await _saveGuestChatHistory();
+      return;
+    } catch (error) {
+      catalogError = error.toString();
     }
     await Future<void>.delayed(const Duration(milliseconds: 450));
     final lower = clean.toLowerCase();
     
-    // Determine category constraint if possible
+    // Determine category constraint dynamically
     String? targetCategory;
-    if (lower.contains('women wallet') || 
-        lower.contains("women's wallet") || 
-        lower.contains('women wallets') || 
-        lower.contains("women's wallets") ||
-        (lower.contains('women') && (lower.contains('wallet') || lower.contains('wallets'))) ||
-        (lower.contains('woman') && (lower.contains('wallet') || lower.contains('wallets'))) ||
-        (lower.contains('lady') && (lower.contains('wallet') || lower.contains('wallets'))) ||
-        (lower.contains('ladies') && (lower.contains('wallet') || lower.contains('wallets')))) {
-      targetCategory = 'Women Wallets';
-    } else if (lower.contains('men wallet') || 
-        lower.contains("men's wallet") || 
-        lower.contains('men wallets') || 
-        lower.contains("men's wallets") ||
-        (lower.contains('men') && (lower.contains('wallet') || lower.contains('wallets'))) ||
-        (lower.contains('man') && (lower.contains('wallet') || lower.contains('wallets'))) ||
-        lower.contains('coat wallet') ||
-        lower.contains('coat wallets')) {
-      targetCategory = 'Men Wallets';
-    } else if (lower.contains('passport') || lower.contains('passports') || lower.contains('travel')) {
-      targetCategory = 'Passport Holders';
-    } else if (lower.contains('belt') || lower.contains('belts')) {
-      targetCategory = 'Men Belts';
+    for (final cat in categories) {
+      final nameLower = cat.name.toLowerCase();
+      if (lower.contains(nameLower)) {
+        targetCategory = cat.name;
+        break;
+      }
+    }
+    if (targetCategory == null) {
+      final queryWords = lower.split(RegExp(r'\W+'));
+      for (final cat in categories) {
+        final nameLower = cat.name.toLowerCase();
+        final catWords = nameLower.split(RegExp(r"\s+")).where((w) => w.length > 2);
+        for (final word in catWords) {
+          if (queryWords.contains(word)) {
+            targetCategory = cat.name;
+            break;
+          }
+        }
+        if (targetCategory != null) break;
+      }
     }
 
     // Extract query words, excluding stop words
@@ -2571,7 +2876,8 @@ class AppState extends ChangeNotifier {
       'availability', 'stock', 'in stock', 'inr', 'rs', 'wallet', 'wallets', 
       'belt', 'belts', 'passport', 'passports', 'cover', 'covers', 'holder', 
       'holders', 'women', "women's", 'woman', "woman's", 'lady', 'ladies', 
-      'men', "men's", 'man', "man's", 'gent', 'gents', 'gentlemen', 'travel'
+      'men', "men's", 'man', "man's", 'gent', 'gents', 'gentlemen', 'travel',
+      'need', 'needs', 'want', 'wants', 'buy', 'get', 'please', 'pls', 'like', 'love', 'shop', 'for'
     };
     final words = lower.split(RegExp(r'\s+')).where((w) {
       return !stopWords.contains(w) && w.length > 2 && int.tryParse(w) == null;
@@ -2582,7 +2888,7 @@ class AppState extends ChangeNotifier {
       
       // 1. Category filter
       if (targetCategory != null) {
-        if (category != targetCategory) return false;
+        if (category.toLowerCase() != targetCategory.toLowerCase()) return false;
       } else {
         // Generic fallback check if no specific target category is found
         bool typeMatch = false;
@@ -2635,7 +2941,8 @@ class AppState extends ChangeNotifier {
     if (recommended.isNotEmpty) {
       return 'Here are MOSPL leather products that match your request. Most carry 30% off, free shipping, and 5 day delivery.';
     }
-    return 'I cannot help with "$original". I am the MOSPL AI Assistant and can only help with leather products, orders, returns, or support. Tell me what you are shopping for: men wallet, coat wallet, hand woven belt, passport holder, or women wallet.';
+    final categoryList = categories.map((c) => c.name.toLowerCase()).join(', ');
+    return 'I cannot help with "$original". I am the MOSPL AI Assistant and can only help with leather products, orders, returns, or support. Tell me what you are shopping for: $categoryList.';
   }
 
   Future<void> _persistUser() async {

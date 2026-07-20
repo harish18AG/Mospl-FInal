@@ -48,6 +48,15 @@ class ApiClient {
         .toList();
   }
 
+  Future<ProductCategory> createCategory(ProductCategory category, String token) async {
+    final json = await _postJson('/api/categories', category.toMap(), token: token);
+    return ProductCategory.fromMap(_withAbsoluteImageUrl((json['category'] as Map).cast<String, dynamic>()));
+  }
+
+  Future<void> deleteCategory(String categoryId, String token) async {
+    await _delete('/api/categories/$categoryId', token: token);
+  }
+
   Future<List<Coupon>> fetchCoupons() async {
     final json = await _getJson('/api/coupons');
     return (json['coupons'] as List? ?? const [])
@@ -350,10 +359,11 @@ class ApiClient {
     await _patchJson('/api/notifications/$notificationId/read', {}, token: token);
   }
 
-  Future<ChatMessage> sendChatMessage(String text, String token) async {
+  Future<ChatMessage> sendChatMessage(String text, {String? token}) async {
     final json = await _postJson('/api/chatbot/message', {'text': text}, token: token);
     return ChatMessage.fromMap((json['message'] as Map).cast<String, dynamic>());
   }
+
 
   Future<List<ChatMessage>> fetchChatHistory(String token) async {
     final json = await _getJson('/api/chatbot/history', token: token);

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -15,24 +16,78 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final user = state.currentUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final cardColor = isDark ? AppColors.darkCard : AppColors.ivoryWhite;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.softBeige;
+    final titleColor = isDark ? const Color(0xffF0EAE3) : AppColors.darkCharcoal;
+    final textColor = isDark ? const Color(0xff9E8E7E) : AppColors.secondaryText;
+    final shadow = isDark 
+        ? Colors.black.withValues(alpha: 0.2)
+        : AppColors.espressoBrown.withValues(alpha: 0.06);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: ListView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         children: [
-          Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                child: Text((user?.name ?? 'M').substring(0, 1).toUpperCase()),
-              ),
-              title: Text(user?.name ?? 'Guest Shopper'),
-              subtitle: Text(user?.email ?? 'Sign in with email/password'),
-              trailing: TextButton(onPressed: () => context.push('/edit-profile'), child: const Text('Edit')),
+          // Profile header card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: shadow,
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppColors.leatherBrown,
+                  foregroundColor: Colors.white,
+                  child: Text(
+                    (user?.name ?? 'M').substring(0, 1).toUpperCase(),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user?.name ?? 'Guest Shopper',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        user?.email ?? 'Sign in with email/password',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/edit-profile'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.leatherBrown),
+                  child: const Text('Edit'),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _menu(context, Icons.receipt_long_outlined, 'My Orders', '/my-orders'),
           _menu(context, Icons.favorite_border, 'Wishlist', '/wishlist'),
           _menu(context, Icons.location_on_outlined, 'Addresses', '/addresses'),
@@ -48,28 +103,51 @@ class ProfileScreen extends StatelessWidget {
           _menu(context, Icons.help_outline, 'Help Center', '/help-center'),
           if (user?.isAdmin == true)
             _menu(context, Icons.admin_panel_settings_outlined, 'Admin Dashboard', '/admin/dashboard'),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           OutlinedButton.icon(
             onPressed: () async {
               await context.read<AppState>().logout();
               if (context.mounted) context.go('/signin');
             },
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, size: 18),
             label: const Text('Logout'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.leatherBrown.withValues(alpha: 0.8),
+              side: BorderSide(color: AppColors.leatherBrown.withValues(alpha: 0.4), width: 1.5),
+            ),
           ),
+          const SizedBox(height: 8),
         ],
       ),
     );
   }
 
   Widget _menu(BuildContext context, IconData icon, String title, String route) {
-    return Card(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? AppColors.darkCard : AppColors.ivoryWhite;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.softBeige;
+    final iconColor = isDark ? const Color(0xffD4B896) : AppColors.leatherBrown;
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1),
+      ),
       child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        trailing: const Icon(Icons.chevron_right),
+        leading: Icon(icon, color: iconColor.withValues(alpha: 0.8), size: 20),
+        title: Text(
+          title, 
+          style: TextStyle(
+            fontWeight: FontWeight.w500, 
+            fontSize: 14,
+            color: isDark ? const Color(0xffF0EAE3) : AppColors.darkCharcoal,
+          ),
+        ),
+        trailing: Icon(Icons.chevron_right, color: isDark ? const Color(0xff9E8E7E) : AppColors.secondaryText.withValues(alpha: 0.6), size: 18),
         onTap: () => context.push(route),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -398,6 +476,17 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final messages = state.chatMessages.isEmpty
+        ? [
+            ChatMessage(
+              id: 'welcome_msg',
+              text: "Hello! Welcome to MOSPL. I am your AI Shopping Assistant. How can I help you find genuine leather wallets, belts, or passport holders today?",
+              isUser: false,
+              createdAt: DateTime.now(),
+            )
+          ]
+        : state.chatMessages;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI Shopping Assistant'),
@@ -411,11 +500,11 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
             child: ListView.builder(
               reverse: true,
               padding: const EdgeInsets.all(12),
-              itemCount: state.chatMessages.length + (_sending ? 1 : 0),
+              itemCount: messages.length + (_sending ? 1 : 0),
               itemBuilder: (context, rawIndex) {
                 if (_sending && rawIndex == 0) return const _TypingBubble();
-                final index = state.chatMessages.length - 1 - (rawIndex - (_sending ? 1 : 0));
-                final message = state.chatMessages[index];
+                final index = messages.length - 1 - (rawIndex - (_sending ? 1 : 0));
+                final message = messages[index];
                 return _ChatBubble(message: message);
               },
             ),

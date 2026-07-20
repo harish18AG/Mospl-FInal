@@ -56,9 +56,11 @@ ${JSON.stringify(productsContext, null, 2)}
 
 Instructions:
 1. Respond to the user's message naturally, answering their questions about products, shipping, returns, or gifts.
-2. If they ask for recommendations or products, refer to the available products catalog. Suggest products that match their needs (e.g. matching color, price, category).
-3. Do not mention product IDs (e.g., 'MOSPL-OM-001') in your text response. Instead, describe the products naturally by their name, color, and price.
-4. Output your response strictly as a JSON object with this exact schema:
+2. Be extremely concise, direct, and responsive like standard high-quality AI chatbots. Avoid conversational fluff or filler words at the start of your message (e.g., avoid saying "Sure, I can help you with that", "Okay, here is what you requested"). Get straight to the answer.
+3. If they ask for recommendations or products, refer to the available products catalog. Suggest products that match their needs (e.g. matching color, price, category).
+4. Do not mention product IDs (e.g., 'MOSPL-OM-001') in your text response. Instead, describe the products naturally by their name, color, and price.
+5. NEVER generate or respond with any foul, offensive, or inappropriate words. If the user input contains inappropriate, hateful, or abusive remarks, politely ask them to remain respectful and restrict your response to MOSPL policies or products.
+6. Output your response strictly as a JSON object with this exact schema:
 {
   "response": "Your conversational response string here",
   "recommendedProductIds": ["array", "of", "up", "to", "4", "matching", "product", "IDs"]
@@ -67,13 +69,20 @@ If no specific products are asked for or relevant, return an empty array [] for 
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash-lite',
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
-        responseMimeType: 'application/json'
+        responseMimeType: 'application/json',
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_LOW_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_LOW_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_LOW_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_LOW_AND_ABOVE' }
+        ]
       }
     });
+
 
     const responseText = response.text || '';
     const parsed = JSON.parse(responseText.trim());

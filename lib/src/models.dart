@@ -299,6 +299,16 @@ class ProductCategory {
       productCount: (map['productCount'] as num?)?.round() ?? 0,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'subtitle': subtitle,
+      'imageUrl': imageUrl,
+      'productCount': productCount,
+    };
+  }
 }
 
 class CartLine {
@@ -483,6 +493,8 @@ class Review {
     required this.rating,
     required this.comment,
     required this.createdAt,
+    this.sentimentScore = 0.0,
+    this.sentimentLabel = 'neutral',
   });
 
   final String id;
@@ -491,6 +503,10 @@ class Review {
   final double rating;
   final String comment;
   final DateTime createdAt;
+  /// NLP sentiment score in [-1.0, 1.0]. 0.0 means neutral / no text.
+  final double sentimentScore;
+  /// NLP sentiment label: 'positive', 'neutral', or 'negative'.
+  final String sentimentLabel;
 
   factory Review.fromMap(Map<String, dynamic> map) {
     return Review(
@@ -500,6 +516,8 @@ class Review {
       rating: _double(map['rating'], 0),
       comment: (map['comment'] ?? '').toString(),
       createdAt: _date(map['createdAt']),
+      sentimentScore: _double(map['sentimentScore'], 0.0),
+      sentimentLabel: (map['sentimentLabel'] ?? 'neutral').toString(),
     );
   }
 }

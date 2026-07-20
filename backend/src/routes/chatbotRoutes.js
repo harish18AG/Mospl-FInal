@@ -1,11 +1,11 @@
 const router = require('express').Router();
 
 const controller = require('../controllers/chatbotController');
-const { requireAuth } = require('../middleware/authMiddleware');
+const { requireAuth, optionalAuth } = require('../middleware/authMiddleware');
 const { requireFields } = require('../middleware/validate');
 
-router.use(requireAuth);
-router.post('/message', requireFields(['text']), controller.sendMessage);
-router.get('/history', controller.history);
+router.post('/message', optionalAuth, requireFields(['text']), controller.sendMessage);
+router.get('/history', requireAuth, controller.history);
 
 module.exports = router;
+

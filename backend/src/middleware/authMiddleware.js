@@ -32,4 +32,21 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
-module.exports = { signApiToken, requireAuth, requireAdmin };
+function optionalAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET || 'mospl-dev-secret');
+    return next();
+  } catch (error) {
+    req.user = null;
+    return next();
+  }
+}
+
+module.exports = { signApiToken, requireAuth, requireAdmin, optionalAuth };
+

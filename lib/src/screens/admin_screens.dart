@@ -432,21 +432,35 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           _field(_name, 'Product name', Icons.inventory_2_outlined),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: DropdownButtonFormField<String>(
-              value: ['Men Wallets', 'Passport Holders', 'Men Belts', 'Women Wallets'].contains(_category.text)
-                  ? _category.text
-                  : 'Men Wallets',
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.category_outlined),
-                labelText: 'Category',
-              ),
-              items: ['Men Wallets', 'Passport Holders', 'Men Belts', 'Women Wallets']
-                  .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
-                  .toList(),
-              onChanged: (val) {
-                if (val != null) {
-                  _category.text = val;
+            child: Consumer<AppState>(
+              builder: (context, appState, child) {
+                final categoryNames = appState.categories.map((c) => c.name).toList();
+                if (categoryNames.isEmpty) {
+                  categoryNames.addAll(['Men Wallets', 'Passport Holders', 'Men Belts', 'Women Wallets']);
                 }
+                final selectedVal = categoryNames.contains(_category.text)
+                    ? _category.text
+                    : categoryNames.first;
+
+                if (_category.text.isEmpty || !categoryNames.contains(_category.text)) {
+                  _category.text = selectedVal;
+                }
+
+                return DropdownButtonFormField<String>(
+                  initialValue: selectedVal,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.category_outlined),
+                    labelText: 'Category',
+                  ),
+                  items: categoryNames
+                      .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      _category.text = val;
+                    }
+                  },
+                );
               },
             ),
           ),
@@ -713,12 +727,257 @@ class AdminCategoriesScreen extends StatelessWidget {
     final categories = context.watch<AppState>().categories;
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Categories')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (context) => const _AddCategoryDialog(),
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Category'),
+      ),
       body: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: categories.length,
         separatorBuilder: (context, index) => const SizedBox(height: 8),
-        itemBuilder: (context, index) => CategoryTile(category: categories[index]),
+        itemBuilder: (context, index) {
+          final cat = categories[index];
+          return CategoryTile(
+            category: cat,
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _confirmDelete(context, cat),
+            ),
+          );
+        },
       ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, ProductCategory category) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Category'),
+          content: Text('Are you sure you want to delete the category "${category.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              onPressed: () async {
+                final appState = context.read<AppState>();
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.pop(context);
+                try {
+                  await appState.deleteCategory(category.id);
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Category "${category.name}" deleted successfully!')),
+                  );
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Failed to delete category: $e')),
+                  );
+                }
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AddCategoryDialog extends StatefulWidget {
+  const _AddCategoryDialog();
+
+  @override
+  State<_AddCategoryDialog> createState() => _AddCategoryDialogState();
+}
+
+class _AddCategoryDialogState extends State<_AddCategoryDialog> {
+  final _nameCtrl = TextEditingController();
+  final _subtitleCtrl = TextEditingController();
+  String? _imageBase64;
+  bool _pickingImage = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _subtitleCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      setState(() => _pickingImage = true);
+      final picker = image_picker.ImagePicker();
+      final image = await picker.pickImage(
+        source: image_picker.ImageSource.gallery,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 60,
+      );
+      if (image == null) {
+        setState(() => _pickingImage = false);
+        return;
+      }
+      final bytes = await image.readAsBytes();
+      final base64Str = 'data:image/jpeg;base64,${base64.encode(bytes)}';
+      setState(() {
+        _imageBase64 = base64Str;
+        _pickingImage = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _pickingImage = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to process image: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add New Category'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Category Name',
+                prefixIcon: Icon(Icons.category_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _subtitleCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Subtitle',
+                prefixIcon: Icon(Icons.subtitles_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Category Image',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (_imageBase64 != null && _imageBase64!.isNotEmpty) ...[
+                      Positioned.fill(
+                        child: ProductImage(
+                          url: _imageBase64!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: InkWell(
+                          onTap: () => setState(() => _imageBase64 = null),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, size: 14, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ] else if (_pickingImage) ...[
+                      const CircularProgressIndicator(strokeWidth: 2.5),
+                    ] else ...[
+                      InkWell(
+                        onTap: _pickImage,
+                        borderRadius: BorderRadius.circular(16),
+                        child: SizedBox.expand(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_a_photo_outlined, size: 28, color: Colors.grey.shade400),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Select Image',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            final name = _nameCtrl.text.trim();
+            final subtitle = _subtitleCtrl.text.trim();
+
+            if (name.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enter category name')),
+              );
+              return;
+            }
+
+            if (_imageBase64 == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please select a category image')),
+              );
+              return;
+            }
+
+            final appState = context.read<AppState>();
+            final messenger = ScaffoldMessenger.of(context);
+            Navigator.pop(context);
+            try {
+              await appState.createCategory(
+                name: name,
+                subtitle: subtitle.isEmpty ? 'Custom category' : subtitle,
+                imageUrl: _imageBase64!,
+              );
+              messenger.showSnackBar(
+                SnackBar(content: Text('Category "$name" created successfully!')),
+              );
+            } catch (e) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Failed to create category: $e')),
+              );
+            }
+          },
+          child: const Text('Create'),
+        ),
+      ],
     );
   }
 }

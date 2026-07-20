@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
 
 class ShopShell extends StatelessWidget {
@@ -116,29 +117,51 @@ class HomeScreen extends StatelessWidget {
                 separatorBuilder: (context, index) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final category = categories[index];
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  final chipBg = isDark ? AppColors.darkCard : AppColors.ivoryWhite;
+                  final chipBorder = isDark ? AppColors.darkBorder : AppColors.softBeige;
                   return InkWell(
                     onTap: () {
                       context.read<AppState>().setCategory(category.name);
                       context.go('/products');
                     },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       width: 106,
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Theme.of(context).dividerColor),
+                        color: chipBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: chipBorder, width: 1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isDark ? Colors.transparent : AppColors.espressoBrown.withValues(alpha: 0.06),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Column(
                         children: [
-                          Expanded(child: ProductImage(url: category.imageUrl, fit: BoxFit.contain)),
-                          const SizedBox(height: 4),
+                           Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.darkInputFill : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ProductImage(url: category.imageUrl, fit: BoxFit.cover),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
                           Text(
                             category.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
                           ),
                         ],
                       ),
@@ -240,8 +263,9 @@ class _HomeBanner extends StatelessWidget {
           return Container(
             margin: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
-              color: const Color(0xffe8f1ff),
-              borderRadius: BorderRadius.circular(8),
+              color: const Color(0xffF5EDE3),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.softBeige, width: 1),
             ),
             clipBehavior: Clip.antiAlias,
             child: Stack(
@@ -249,23 +273,28 @@ class _HomeBanner extends StatelessWidget {
               children: [
                 if (item.imageUrl.isNotEmpty)
                   Opacity(
-                    opacity: 0.18,
+                    opacity: 0.12,
                     child: ProductImage(url: item.imageUrl, fit: BoxFit.cover),
                   ),
                 Padding(
                   padding: const EdgeInsets.all(18),
                   child: Row(
                     children: [
-                      Icon(Icons.local_offer_outlined, size: 46, color: Theme.of(context).colorScheme.primary),
+                      Icon(Icons.local_offer_outlined, size: 44, color: AppColors.leatherBrown),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(item.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                            Text(item.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.espressoBrown,
+                            )),
                             const SizedBox(height: 4),
-                            Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                            Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondaryText),
+                            ),
                           ],
                         ),
                       ),
@@ -290,6 +319,16 @@ class _HomeBanner extends StatelessWidget {
       _BannerData('Free Shipping', 'Delivered by 5 days across India', Icons.local_shipping_outlined),
       _BannerData('Women Wallets', 'Black and brown genuine leather wallets', Icons.wallet_outlined),
     ];
+    final bannerColors = [
+      const Color(0xffF5EDE3),
+      const Color(0xffEDF5EE),
+      const Color(0xffF5EDE3),
+    ];
+    final bannerIconColors = [
+      AppColors.leatherBrown,
+      AppColors.successGreen,
+      AppColors.leatherBrown,
+    ];
     return CarouselSlider.builder(
       itemCount: banners.length,
       itemBuilder: (context, index, realIndex) {
@@ -298,21 +337,27 @@ class _HomeBanner extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 6),
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: index == 1 ? const Color(0xffe9f8ed) : const Color(0xffe8f1ff),
-            borderRadius: BorderRadius.circular(8),
+            color: bannerColors[index],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.softBeige, width: 1),
           ),
           child: Row(
             children: [
-              Icon(item.icon, size: 46, color: index == 1 ? const Color(0xff12833b) : Theme.of(context).colorScheme.primary),
+              Icon(item.icon, size: 44, color: bannerIconColors[index]),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(item.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.espressoBrown,
+                    )),
                     const SizedBox(height: 4),
-                    Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondaryText),
+                    ),
                   ],
                 ),
               ),
@@ -462,6 +507,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final isWishlisted = context.select<AppState, bool>((app) => app.isWishlisted(widget.productId));
     final allProducts = context.select<AppState, List<Product>>((app) => app.allProducts);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final imageBg = isDark ? AppColors.darkCard : AppColors.ivoryWhite;
+
     final images = product.galleryImages.isEmpty ? [product.thumbnail] : product.galleryImages;
     final visibleSpecifications = product.specifications.entries
         .where((entry) => entry.key != 'Source URL' && entry.key != 'Source Product ID')
@@ -484,19 +532,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           IconButton(onPressed: () => context.push('/cart'), icon: const Icon(Icons.shopping_cart_outlined)),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      bottomNavigationBar: BottomAppBar(
+        color: Theme.of(context).colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 6,
+        child: Container(
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: product.stock <= 0
                       ? null
-                      : () => context.read<AppState>().addToCart(product),
-                  icon: Icon(product.stock <= 0
-                      ? Icons.remove_shopping_cart
-                      : Icons.add_shopping_cart),
+                      : () {
+                          context.read<AppState>().addToCart(product);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${product.name} added to cart!'),
+                              action: SnackBarAction(
+                                label: 'Go to Cart',
+                                onPressed: () => context.push('/checkout'),
+                              ),
+                            ),
+                          );
+                        },
+                  icon: Icon(product.stock <= 0 ? Icons.remove_shopping_cart : Icons.add_shopping_cart),
                   label: Text(product.stock <= 0 ? 'Sold Out' : 'Add to Cart'),
                 ),
               ),
@@ -522,7 +583,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           Center(
             child: Container(
               constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
-              color: Theme.of(context).cardColor,
+              color: imageBg,
               child: InkWell(
                 onTap: () => context.push('/gallery/${product.productId}?index=$_selectedImage'),
                 child: AspectRatio(
@@ -701,23 +762,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (stock <= 0) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          border: Border.all(color: Colors.red.shade200),
-          borderRadius: BorderRadius.circular(8),
+          color: AppColors.errorRed.withValues(alpha: 0.06),
+          border: Border.all(color: AppColors.errorRed.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+            Icon(Icons.error_outline, color: AppColors.errorRed, size: 20),
             const SizedBox(width: 10),
             const Expanded(
               child: Text(
                 'This product is sold out. Please choose another product.',
                 style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  color: AppColors.errorRed,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             ),
@@ -727,23 +788,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } else if (stock <= 5) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          border: Border.all(color: Colors.orange.shade200),
-          borderRadius: BorderRadius.circular(8),
+          color: AppColors.luxuryGold.withValues(alpha: 0.10),
+          border: Border.all(color: AppColors.luxuryGold.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800, size: 20),
+            const Icon(Icons.warning_amber_rounded, color: Color(0xff8A5B16), size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Only $stock items left in stock! Hurry up!',
-                style: TextStyle(
-                  color: Colors.orange.shade900,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                style: const TextStyle(
+                  color: Color(0xff8A5B16),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             ),
@@ -753,23 +814,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } else {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.green.shade50,
-          border: Border.all(color: Colors.green.shade200),
-          borderRadius: BorderRadius.circular(8),
+          color: AppColors.successGreen.withValues(alpha: 0.06),
+          border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.green.shade700, size: 20),
+            const Icon(Icons.check_circle_outline_rounded, color: AppColors.successGreen, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'In Stock ($stock available)',
-                style: TextStyle(
-                  color: Colors.green.shade800,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                style: const TextStyle(
+                  color: AppColors.successGreen,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             ),
@@ -838,6 +899,23 @@ class _ProductReviewsList extends StatelessWidget {
     }
     return Column(
       children: productReviews.map((review) {
+        // ── Sentiment badge ────────────────────────────────────────────────
+        final sentimentColor = review.sentimentLabel == 'positive'
+            ? const Color(0xff2e7d32)
+            : review.sentimentLabel == 'negative'
+                ? const Color(0xffc62828)
+                : const Color(0xff616161);
+        final sentimentIcon = review.sentimentLabel == 'positive'
+            ? Icons.sentiment_satisfied_alt
+            : review.sentimentLabel == 'negative'
+                ? Icons.sentiment_dissatisfied
+                : Icons.sentiment_neutral;
+        final sentimentText = review.sentimentLabel == 'positive'
+            ? 'Positive'
+            : review.sentimentLabel == 'negative'
+                ? 'Negative'
+                : 'Neutral';
+
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: Padding(
@@ -882,6 +960,36 @@ class _ProductReviewsList extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(review.comment),
                 ],
+                const SizedBox(height: 8),
+                // Sentiment badge — only show if there's comment text
+                if (review.comment.isNotEmpty)
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: sentimentColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: sentimentColor.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(sentimentIcon, size: 13, color: sentimentColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              sentimentText,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: sentimentColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -905,9 +1013,26 @@ class _ProductReviewDialogState extends State<_ProductReviewDialog> {
   double _rating = 5;
   bool _submitting = false;
   String? _error;
+  // Live NLP sentiment preview
+  String _sentimentLabel = 'neutral';
+
+  @override
+  void initState() {
+    super.initState();
+    _comment.addListener(_onCommentChanged);
+  }
+
+  void _onCommentChanged() {
+    final text = _comment.text;
+    final result = AppState.analyzeSentimentPublic(text);
+    if (result != _sentimentLabel) {
+      setState(() => _sentimentLabel = result);
+    }
+  }
 
   @override
   void dispose() {
+    _comment.removeListener(_onCommentChanged);
     _comment.dispose();
     super.dispose();
   }
@@ -940,6 +1065,11 @@ class _ProductReviewDialogState extends State<_ProductReviewDialog> {
                 alignLabelWithHint: true,
               ),
             ),
+            // Live NLP sentiment preview
+            if (_comment.text.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _SentimentPreviewBadge(label: _sentimentLabel),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 8),
               Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -980,8 +1110,57 @@ class _ProductReviewDialogState extends State<_ProductReviewDialog> {
   }
 }
 
+// ── Live sentiment preview badge shown while typing a review ──────────────────
+class _SentimentPreviewBadge extends StatelessWidget {
+  const _SentimentPreviewBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = label == 'positive';
+    final isNegative = label == 'negative';
+    final color = isPositive
+        ? const Color(0xff2e7d32)
+        : isNegative
+            ? const Color(0xffc62828)
+            : const Color(0xff616161);
+    final icon = isPositive
+        ? Icons.sentiment_satisfied_alt
+        : isNegative
+            ? Icons.sentiment_dissatisfied
+            : Icons.sentiment_neutral;
+    final text = isPositive ? 'Positive review' : isNegative ? 'Negative review' : 'Neutral review';
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: Container(
+        key: ValueKey(label),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 5),
+            Text(
+              'Your review sounds: $text',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
 class ProductGalleryScreen extends StatefulWidget {
   const ProductGalleryScreen({super.key, required this.productId, this.initialIndex = 0});
+
 
   final String productId;
   final int initialIndex;
@@ -1193,7 +1372,15 @@ class _FiltersScreenState extends State<FiltersScreen> {
 }
 
 Future<void> showSortSheet(BuildContext context) {
-  const options = ['Recommended', 'Price: Low to High', 'Price: High to Low', 'Top Rated', 'Newest'];
+  const options = ['Recommended', 'Price: Low to High', 'Price: High to Low', 'Top Rated', 'Best Reviewed', 'Newest'];
+  const optionDescriptions = {
+    'Recommended': 'Best match for you',
+    'Price: Low to High': 'Lowest price first',
+    'Price: High to Low': 'Highest price first',
+    'Top Rated': 'Highest star rating first',
+    'Best Reviewed': 'Best stars + customer feedback quality',
+    'Newest': 'Most recently added',
+  };
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -1211,6 +1398,13 @@ Future<void> showSortSheet(BuildContext context) {
               (option) => ListTile(
                 leading: Icon(selected == option ? Icons.radio_button_checked : Icons.radio_button_off),
                 title: Text(option),
+                subtitle: Text(
+                  optionDescriptions[option] ?? '',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                ),
+                trailing: option == 'Best Reviewed'
+                    ? const Icon(Icons.auto_awesome, size: 16, color: Color(0xffffb300))
+                    : null,
                 onTap: () {
                   context.read<AppState>().setSort(option);
                   Navigator.pop(context);

@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { db, isFirebaseConfigured } = require('../config/firebase');
 const store = require('../services/store');
+const { analyzeSentiment } = require('../services/sentimentService');
 
 const getReviews = asyncHandler(async (req, res) => {
   if (isFirebaseConfigured && db) {
@@ -23,6 +24,8 @@ const addReview = asyncHandler(async (req, res) => {
   if (isFirebaseConfigured && db) {
     const productId = req.body.productId;
     const ref = db.collection('reviews').doc(productId).collection('items').doc();
+    const comment = req.body.comment || '';
+    const { sentimentScore, sentimentLabel } = analyzeSentiment(comment);
     const review = {
       id: ref.id,
       reviewId: ref.id,
@@ -30,7 +33,9 @@ const addReview = asyncHandler(async (req, res) => {
       userName: req.user.email?.split('@')[0] || 'MOSPL Customer',
       productId: productId,
       rating: Number(req.body.rating || 5),
-      comment: req.body.comment || '',
+      comment,
+      sentimentScore,
+      sentimentLabel,
       createdAt: new Date().toISOString(),
     };
     await ref.set(review);
@@ -55,13 +60,17 @@ const addReview = asyncHandler(async (req, res) => {
     res.status(201).json({ ok: true, review });
     return;
   }
+  const comment = req.body.comment || '';
+  const { sentimentScore, sentimentLabel } = analyzeSentiment(comment);
   const review = {
     reviewId: `REV-${Date.now()}`,
     userId: req.user.uid,
     userName: req.user.email?.split('@')[0] || 'MOSPL Customer',
     productId: req.body.productId,
     rating: Number(req.body.rating || 5),
-    comment: req.body.comment || '',
+    comment,
+    sentimentScore,
+    sentimentLabel,
     createdAt: new Date().toISOString(),
   };
   store.reviews.unshift(review);
