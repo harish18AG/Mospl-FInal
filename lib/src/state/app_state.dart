@@ -3111,7 +3111,8 @@ class AppState extends ChangeNotifier {
   }
 
   String? get _addressStorageKey {
-    final email = currentUser?.email.trim().toLowerCase();
+    final email = currentUser?.email.trim().toLowerCase()
+        ?? firebase_auth.FirebaseAuth.instance.currentUser?.email?.trim().toLowerCase();
     if (email == null || email.isEmpty) return null;
     return 'addresses:$email';
   }
