@@ -94,6 +94,7 @@ class AppState extends ChangeNotifier {
   final List<ShippingAddress> addresses = [];
   final List<AppNotification> notifications = [];
   final List<ChatMessage> chatMessages = [];
+  final List<ChatMessage> chatHistory = [];
   final List<Review> reviews = [];
   final List<PaymentRecord> payments = [];
   final List<BannerItem> banners = [];
@@ -1366,9 +1367,18 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> loadChatHistory({bool notify = true}) async {
-    // Chat is session-local — do not sync history across devices.
-    // Each new login/session starts with a fresh empty chat.
-    chatMessages.clear();
+    if (backendToken != null) {
+      try {
+        final history = await _apiClient.fetchChatHistory(backendToken!);
+        chatHistory
+          ..clear()
+          ..addAll(history);
+      } catch (_) {
+        chatHistory.clear();
+      }
+    } else {
+      await _loadGuestChatHistory();
+    }
     if (notify) notifyListeners();
   }
 
@@ -1379,14 +1389,14 @@ class AppState extends ChangeNotifier {
       if (raw != null) {
         final List decoded = json.decode(raw);
         final messages = decoded.map((item) => ChatMessage.fromMap(Map<String, dynamic>.from(item))).toList();
-        chatMessages
+        chatHistory
           ..clear()
           ..addAll(messages);
       } else {
-        chatMessages.clear();
+        chatHistory.clear();
       }
     } catch (_) {
-      chatMessages.clear();
+      chatHistory.clear();
     }
     notifyListeners();
   }
@@ -1394,9 +1404,18 @@ class AppState extends ChangeNotifier {
   Future<void> _saveGuestChatHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final list = chatMessages.map((msg) => msg.toMap()).toList();
+      final list = chatHistory.map((msg) => msg.toMap()).toList();
       await prefs.setString('guest_chat_history', json.encode(list));
     } catch (_) {}
+  }
+
+  void _addChatMessage(ChatMessage message) {
+    chatMessages.add(message);
+    chatHistory.add(message);
+    notifyListeners();
+    if (backendToken == null) {
+      _saveGuestChatHistory().ignore();
+    }
   }
 
   Future<void> loadReturns({bool notify = true}) async {
@@ -2840,14 +2859,13 @@ class AppState extends ChangeNotifier {
   Future<void> sendChat(String text) async {
     final clean = text.trim();
     if (clean.isEmpty) return;
-    chatMessages.add(
+    _addChatMessage(
       ChatMessage(id: _uuid.v4(), text: clean, isUser: true, createdAt: DateTime.now()),
     );
-    notifyListeners();
 
     if (_hasProfanity(clean)) {
       await Future<void>.delayed(const Duration(milliseconds: 300));
-      chatMessages.add(
+      _addChatMessage(
         ChatMessage(
           id: _uuid.v4(),
           text: "I can only help you with questions about MOSPL leather products, ordering, or returns. Please keep the conversation respectful and avoid using inappropriate language.",
@@ -2855,8 +2873,6 @@ class AppState extends ChangeNotifier {
           createdAt: DateTime.now(),
         ),
       );
-      notifyListeners();
-      await _saveGuestChatHistory();
       return;
     }
 
@@ -2866,9 +2882,7 @@ class AppState extends ChangeNotifier {
 
     try {
       final reply = await _apiClient.sendChatMessage(clean, token: backendToken);
-      chatMessages.add(reply);
-      notifyListeners();
-      await _saveGuestChatHistory();
+      _addChatMessage(reply);
       return;
     } catch (error) {
       catalogError = error.toString();
@@ -2944,7 +2958,7 @@ class AppState extends ChangeNotifier {
       return true;
     }).take(4).map((product) => product.productId).toList();
     final reply = _dummyReply(clean, lower, recommended);
-    chatMessages.add(
+    _addChatMessage(
       ChatMessage(
         id: _uuid.v4(),
         text: reply,
@@ -2955,8 +2969,6 @@ class AppState extends ChangeNotifier {
             : recommended,
       ),
     );
-    notifyListeners();
-    await _saveGuestChatHistory();
   }
 
   String _dummyReply(String original, String lower, List<String> recommended) {

@@ -491,7 +491,13 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
       appBar: AppBar(
         title: const Text('AI Shopping Assistant'),
         actions: [
-          IconButton(onPressed: () => context.push('/chat-history'), icon: const Icon(Icons.history)),
+          IconButton(
+            onPressed: () {
+              context.read<AppState>().loadChatHistory();
+              context.push('/chat-history');
+            },
+            icon: const Icon(Icons.history),
+          ),
         ],
       ),
       body: Column(
@@ -546,7 +552,7 @@ class _AIChatbotScreenState extends State<AIChatbotScreen> {
                   const SizedBox(width: 8),
                   IconButton.filled(
                     onPressed: () => _send(_controller.text),
-                    icon: const Icon(Icons.send),
+                    icon: const Icon(Icons.send, color: Colors.white),
                   ),
                 ],
               ),
@@ -645,7 +651,7 @@ class ChatHistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final messages = context.watch<AppState>().chatMessages;
+    final messages = context.watch<AppState>().chatHistory;
     return Scaffold(
       appBar: AppBar(title: const Text('Chat History')),
       body: ListView.separated(
