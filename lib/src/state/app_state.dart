@@ -178,11 +178,42 @@ class AppState extends ChangeNotifier {
       Iterable<Product> result = allProducts;
       final query = searchQuery.trim().toLowerCase();
       if (query.isNotEmpty) {
+        final queryWords = query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
         result = result.where((product) {
           final text =
               '${product.name} ${product.category} ${product.subcategory} ${product.color} ${product.material}'
                   .toLowerCase();
-          return text.contains(query);
+          return queryWords.every((qw) {
+            bool hasMatch(String word) {
+              if (word == 'men') {
+                return text.replaceAll('women', '').contains('men');
+              }
+              if (word == 'man') {
+                return text.replaceAll('woman', '').contains('man');
+              }
+              if (word == 'male') {
+                return text.replaceAll('female', '').contains('male');
+              }
+              return text.contains(word);
+            }
+
+            if (hasMatch(qw)) return true;
+
+            var norm = qw;
+            if (norm.endsWith("'s")) {
+              norm = norm.substring(0, norm.length - 2);
+            } else if (norm.endsWith("s")) {
+              norm = norm.substring(0, norm.length - 1);
+            }
+            if (norm.isNotEmpty && hasMatch(norm)) return true;
+
+            if (text.contains('${qw}s') || text.contains("$qw's")) return true;
+
+            if ((qw == 'womens' || qw == "women's") && (text.contains('women') || text.contains('woman'))) return true;
+            if ((qw == 'mens' || qw == "men's") && (hasMatch('men') || hasMatch('man'))) return true;
+
+            return false;
+          });
         });
       }
       if (selectedCategory != null && selectedCategory!.isNotEmpty) {

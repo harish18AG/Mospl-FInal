@@ -753,25 +753,56 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-class SearchBox extends StatelessWidget {
+class SearchBox extends StatefulWidget {
   const SearchBox({super.key, this.readOnly = false, this.onTap});
 
   final bool readOnly;
   final VoidCallback? onTap;
 
   @override
+  State<SearchBox> createState() => _SearchBoxState();
+}
+
+class _SearchBoxState extends State<SearchBox> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialQuery = context.read<AppState>().searchQuery;
+    _controller = TextEditingController(text: initialQuery);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // FIX: Was context.watch<AppState>() which rebuilt on EVERY state change
-    // (including cart/wishlist toggles). Now only rebuilds when searchQuery changes.
     final searchQuery = context.select<AppState, String>((app) => app.searchQuery);
+    
+    if (_controller.text != searchQuery) {
+      final selection = _controller.selection;
+      _controller.text = searchQuery;
+      if (selection.isValid && selection.baseOffset <= searchQuery.length) {
+        _controller.selection = selection;
+      } else {
+        _controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: searchQuery.length),
+        );
+      }
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: TextField(
-        readOnly: readOnly,
-        onTap: onTap,
+        readOnly: widget.readOnly,
+        onTap: widget.onTap,
         onChanged: context.read<AppState>().updateSearch,
-        controller: readOnly ? TextEditingController(text: searchQuery) : null,
+        controller: _controller,
         style: Theme.of(context).textTheme.bodyMedium,
         decoration: InputDecoration(
           hintText: 'Search wallets, belts, passport holders…',
@@ -787,7 +818,10 @@ class SearchBox extends StatelessWidget {
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
                   icon: Icon(Icons.close_rounded, size: 18, color: AppColors.leatherBrown.withValues(alpha: 0.6)),
-                  onPressed: () => context.read<AppState>().updateSearch(''),
+                  onPressed: () {
+                    context.read<AppState>().updateSearch('');
+                    _controller.clear();
+                  },
                 )
               : null,
           filled: true,

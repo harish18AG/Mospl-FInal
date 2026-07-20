@@ -108,6 +108,28 @@ void main() {
     expect(coatReply.recommendedProductIds, contains('MOSPL-OM-013'));
   });
 
+  test('AppState visibleProducts robust query matching handles variations', () {
+    final state = AppState();
+
+    // Test 1: "womens wallet"
+    state.updateSearch('womens wallet');
+    expect(state.visibleProducts.isNotEmpty, isTrue);
+    expect(state.visibleProducts.every((p) => p.category == 'Women Wallets'), isTrue);
+
+    // Test 2: "mens wallet"
+    state.updateSearch('mens wallet');
+    expect(state.visibleProducts.isNotEmpty, isTrue);
+    expect(state.visibleProducts.every((p) => p.category == 'Men Wallets'), isTrue);
+
+    // Test 3: "men's wallet"
+    state.updateSearch("men's wallet");
+    expect(state.visibleProducts.isNotEmpty, isTrue);
+    expect(state.visibleProducts.every((p) => p.category == 'Men Wallets'), isTrue);
+
+    // Reset search
+    state.updateSearch('');
+  });
+
   testWidgets('TrackOrderScreen shows Icons.close for cancelled orders', (WidgetTester tester) async {
     final state = AppState();
     final cancelledOrder = AppOrder(
